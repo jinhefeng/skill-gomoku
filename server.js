@@ -74,8 +74,11 @@ io.on('connection', (socket) => {
     });
 
     socket.on('danmaku', (data) => {
-        // data: { roomId, message }
-        socket.to(data.roomId).emit('danmaku', data.message);
+        // data: { roomId, message, player }
+        socket.to(data.roomId).emit('danmaku', {
+            message: data.message,
+            player: data.player
+        });
     });
 
     // Disconnect

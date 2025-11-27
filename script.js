@@ -131,8 +131,8 @@ class GameState {
             location.reload();
         });
 
-        this.socket.on('danmaku', (msg) => {
-            this.showDanmaku(msg, false);
+        this.socket.on('danmaku', (data) => {
+            this.showDanmaku(data.message, data.player);
         });
 
         this.socket.on('error_message', (msg) => {
@@ -156,6 +156,7 @@ class GameState {
             document.getElementById('chatBar').classList.remove('hidden');
         } else {
             document.getElementById('chatBar').classList.add('hidden');
+
         }
 
         this.updateUI();
@@ -167,24 +168,37 @@ class GameState {
         const msg = input.value.trim();
         if (!msg) return;
 
-        this.showDanmaku(msg, true);
+        // Show my own message (I am myPlayerNum)
+        this.showDanmaku(msg, this.myPlayerNum);
+
         if (this.isOnline) {
-            this.socket.emit('danmaku', { roomId: this.roomId, message: msg });
+            this.socket.emit('danmaku', {
+                roomId: this.roomId,
+                message: msg,
+                player: this.myPlayerNum
+            });
         }
         input.value = '';
     }
 
-    showDanmaku(text, isMe) {
+    showDanmaku(text, playerNum) {
         const container = document.getElementById('danmakuContainer');
         const item = document.createElement('div');
         item.className = 'danmaku-item';
         item.innerText = text;
-        item.style.top = `${Math.random() * 80}%`; // Random height
-        item.style.color = isMe ? 'var(--p1-color)' : '#fff';
+        item.style.top = `${Math.random() * 80}%`;
+
+        // Color based on player number
+        if (playerNum === 1) {
+            item.style.color = 'var(--p1-color)';
+            item.style.textShadow = '0 0 5px var(--p1-glow)';
+        } else {
+            item.style.color = 'var(--p2-color)';
+            item.style.textShadow = '0 0 5px var(--p2-glow)';
+        }
 
         container.appendChild(item);
 
-        // Remove after animation
         setTimeout(() => {
             item.remove();
         }, 8000);
