@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill Gomoku - 技能五子棋</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <header class="game-header">
+            <h1>技能五子棋</h1>
+            <div class="turn-indicator" id="turnIndicator">等待开始...</div>
+        </header>
+
+        <!-- Menu Overlay -->
+        <div id="menuOverlay" class="menu-overlay">
+            <div class="menu-box">
+                <h2>选择模式</h2>
+                <input type="text" id="nicknameInput" class="nickname-input" placeholder="请输入你的昵称 (可选)">
+                <button class="menu-btn" onclick="game.startLocal()">本地双人</button>
+                <button class="menu-btn" onclick="game.startRandom()">随机匹配</button>
+                <div class="divider"></div>
+                <button class="menu-btn" onclick="game.createPrivate()">创建房间</button>
+                <div class="join-box">
+                    <input type="text" id="roomIdInput" placeholder="输入房间号">
+                    <button class="menu-btn small" onclick="game.joinPrivate()">加入房间</button>
+                </div>
+                <div id="waitingMsg" class="waiting-msg hidden">正在寻找对手...</div>
+            </div>
+        </div>
+
+        <main class="game-arena blur-bg" id="gameArena">
+            <!-- Danmaku Overlay -->
+            <div id="danmakuContainer" class="danmaku-container"></div>
+
+            <!-- Player 1 Panel -->
+            <div class="player-panel p1-panel" id="p1Panel">
+                <div class="player-info">
+                    <h2 id="p1Name">玩家 1 (你)</h2>
+                    <div class="energy-bar">
+                        <div class="energy-fill" id="p1EnergyFill" style="width: 0%"></div>
+                        <span class="energy-text" id="p1EnergyText">0/5 能量</span>
+                    </div>
+                </div>
+                <div class="skills-container">
+                    <button class="skill-btn" data-skill="double" data-cost="4" onclick="game.activateSkill('double')">
+                        <span class="skill-icon">⚡</span>
+                        <span class="skill-name">双重下子</span>
+                        <span class="skill-cost">4 能量</span>
+                    </button>
+                    <button class="skill-btn" data-skill="destroy" data-cost="3"
+                        onclick="game.activateSkill('destroy')">
+                        <span class="skill-icon">💥</span>
+                        <span class="skill-name">破坏</span>
+                        <span class="skill-cost">3 能量</span>
+                    </button>
+                    <button class="skill-btn" data-skill="swap" data-cost="2" onclick="game.activateSkill('swap')">
+                        <span class="skill-icon">🔄</span>
+                        <span class="skill-name">策反</span>
+                        <span class="skill-cost">2 能量</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Game Board -->
+            <div class="board-container">
+                <div id="gameBoard" class="game-board"></div>
+                <div id="winOverlay" class="win-overlay hidden">
+                    <h2 id="winnerText">玩家 1 获胜!</h2>
+                    <button class="restart-btn" onclick="game.restart()">再来一局</button>
+                </div>
+
+                <!-- Chat Input -->
+                <div class="chat-bar hidden" id="chatBar">
+                    <input type="text" id="chatInput" placeholder="发送弹幕 (支持 Emoji)..." maxlength="50">
+                    <button onclick="game.sendDanmaku()">🚀</button>
+                </div>
+            </div>
+
+            <!-- Player 2 Panel -->
+            <div class="player-panel p2-panel" id="p2Panel">
+                <div class="player-info">
+                    <h2 id="p2Name">玩家 2 (对手)</h2>
+                    <div class="energy-bar">
+                        <div class="energy-fill" id="p2EnergyFill" style="width: 0%"></div>
+                        <span class="energy-text" id="p2EnergyText">0/5 能量</span>
+                    </div>
+                </div>
+                <div class="skills-container">
+                    <button class="skill-btn" data-skill="double" data-cost="4" onclick="game.activateSkill('double')">
+                        <span class="skill-icon">⚡</span>
+                        <span class="skill-name">双重下子</span>
+                        <span class="skill-cost">4 能量</span>
+                    </button>
+                    <button class="skill-btn" data-skill="destroy" data-cost="3"
+                        onclick="game.activateSkill('destroy')">
+                        <span class="skill-icon">💥</span>
+                        <span class="skill-name">破坏</span>
+                        <span class="skill-cost">3 能量</span>
+                    </button>
+                    <button class="skill-btn" data-skill="swap" data-cost="2" onclick="game.activateSkill('swap')">
+                        <span class="skill-icon">🔄</span>
+                        <span class="skill-name">策反</span>
+                        <span class="skill-cost">2 能量</span>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+
+</html>
