@@ -1,42 +1,137 @@
-# Skill Gomoku - Walkthrough
+# 技能五子棋 🔮
 
-I have successfully built the "Skill Gomoku" game. It features a premium Neon Glassmorphism design and a fully functional skill system.
+一款现代化、赛博朋克风格的五子棋游戏，融入战略技能系统！支持在线对战、技能释放，享受极致的视觉体验。
 
-## Features Implemented
-- **Core Gameplay:** Standard Gomoku rules (5 in a row).
-- **Skill System:**
-    - **Energy:** Players gain 1 energy per turn (max 5).
-    - **Double Move (4 EN):** Place two stones in one turn.
-    - **Destroy (3 EN):** Remove an opponent's stone.
-    - **Swap (2 EN):** Convert an opponent's stone to your color.
-- **Visuals:**
-    - Dark neon aesthetic.
-    - Smooth animations for stone placement.
-    - Interactive UI for skills and energy.
+## ✨ 核心特性
 
-## Verification
-I verified the game by opening it in the browser and performing a test move.
+### 🎮 游戏玩法
+*   **经典核心**：传统 15x15 五子棋玩法
+*   **技能系统**：三种独特技能增加策略深度
+    *   **⚡ 双重行动（4能量）**：连续放置两颗棋子
+    *   **💥 破坏（2能量）**：移除对手的一颗棋子
+    *   **🔄 策反（3能量）**：将对手的棋子转换为己方颜色
+*   **能量机制**：
+    *   每回合自动恢复 1 点能量（上限 5 点）
+    *   超时惩罚：每次超时扣除 1 点能量
+    *   能量降至 -5 判负
 
-### Initial Game State
-The game loads with the board empty and Player 1's turn active.
-![Initial State](/Users/jinhefeng/.gemini/antigravity/brain/0c6c6c98-ba4e-43ce-818c-04011166f786/initial_game_state_1764255330718.png)
+### 🌐 联机对战
+*   **随机匹配**：快速匹配在线对手
+*   **私人房间**：创建房间并分享房间号给好友
+*   **本地双人**：同屏对战模式
+*   **实时同步**：基于 Socket.io 的实时通信
 
-### Gameplay Test
-I placed a stone in the center of the board. The turn indicator correctly switched to Player 2, and the stone appeared with the correct color (Cyan for P1).
-![After First Move](/Users/jinhefeng/.gemini/antigravity/brain/0c6c6c98-ba4e-43ce-818c-04011166f786/after_first_move_1764255343200.png)
+### 💬 社交互动
+*   **弹幕系统**：发送实时评论，弹幕从屏幕飞过
+*   **昵称系统**：自定义您的战斗身份
+*   **计分板**：连续对局积分累积
 
-## Multiplayer Update
-I have added online multiplayer functionality.
-- **Random Match:** Connects to a random opponent.
-- **Private Room:** Creates a unique room ID to share.
+### 🎨 现代 UI/UX
+*   **玻璃拟态设计**：流畅的半透明界面
+*   **霓虹美学**：赛博朋克风格视觉效果
+*   **响应式布局**：完美支持桌面、平板和移动设备
+*   **流畅动画**：精心设计的过渡和反馈效果
 
-### Multiplayer Verification
-I verified the "Create Room" functionality by running the server and clicking the button. The room was successfully created.
-![Room Created](/Users/jinhefeng/.gemini/antigravity/brain/0c6c6c98-ba4e-43ce-818c-04011166f786/room_created_verify_1764259265842.png)
+## 🚀 快速开始
 
-## How to Play
-1.  **Start Server:** Run `node server.js` in your terminal.
-2.  **Open Game:** Go to `http://localhost:3000` in your browser.
-3.  **Select Mode:** Choose "Local Play" or "Online Match".
-4.  **Enjoy!**
+### 环境要求
 
+*   [Node.js](https://nodejs.org/) (v14 或更高版本)
+*   npm (Node 包管理器)
+
+### 本地开发
+
+1.  **克隆仓库**
+    ```bash
+    git clone https://github.com/yourusername/skill-gomoku.git
+    cd skill-gomoku
+    ```
+
+2.  **安装依赖**
+    ```bash
+    npm install
+    ```
+
+3.  **启动服务器**
+    ```bash
+    npm start
+    ```
+    或者使用自动重启的开发模式（需要安装 nodemon）：
+    ```bash
+    npm run dev
+    ```
+
+4.  **开始游戏**
+    打开浏览器访问 `http://localhost:3000`
+
+## 🎯 游戏规则
+
+### 基础规则
+1.  玩家轮流在棋盘上放置棋子（青色 vs 品红色）
+2.  率先连成 5 颗棋子（横向、纵向或对角线）即获胜
+3.  每回合限时 30 秒
+
+### 能量与技能
+*   **能量获取**：每轮回开始时自动恢复 1 点能量（上限 5 点）
+*   **技能释放**：
+    *   点击技能按钮激活技能
+    *   点击棋盘执行技能效果
+    *   ESC 键取消技能
+*   **超时惩罚**：
+    *   每次超时扣除 1 点能量
+    *   能量降至 -5 时判负
+
+### 技能详解
+*   **双重行动**：激活后下一步可连续放置 2 颗棋子
+*   **破坏**：移除棋盘上对手的一颗棋子，该位置变为空位
+*   **策反**：将对手的棋子转换为己方颜色
+
+## 📦 生产部署
+
+详细的部署指南请参考 [部署文档](deployment_guide.md)。
+
+快速部署步骤：
+
+1.  **上传代码到服务器**
+2.  **安装依赖**: `npm install`
+3.  **使用 PM2 启动**: `pm2 start server.js --name skill-gomoku`
+4.  **配置反向代理**（Nginx/Caddy）
+5.  **访问您的域名**
+
+## 🛠️ 技术栈
+
+*   **前端框架**: 原生 HTML5、CSS3、JavaScript
+*   **后端框架**: Node.js + Express
+*   **实时通信**: Socket.io
+*   **进程管理**: PM2
+*   **反向代理**: Caddy / Nginx
+
+## 📂 项目结构
+
+```
+skill-gomoku/
+├── index.html          # 游戏主页面
+├── style.css           # 样式文件
+├── script.js           # 客户端逻辑
+├── server.js           # 服务器端逻辑
+├── package.json        # 依赖配置
+├── Caddyfile          # Caddy 配置示例
+├── README.md          # 项目说明
+└── deployment_guide.md # 部署指南
+```
+
+## 🎮 游戏截图
+
+_（可在此添加游戏截图）_
+
+## 🤝 贡献指南
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📄 开源协议
+
+本项目采用 [MIT License](LICENSE) 开源协议。
+
+---
+
+使用 ❤️ 制作
