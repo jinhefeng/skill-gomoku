@@ -1,24 +1,58 @@
 class SoundManager {
     constructor() {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-
-    playTone(freq, type, duration, vol = 0.1) {
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-        osc.start();
-        osc.stop(this.ctx.currentTime + duration);
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = 0.3;
+        this.masterGain.connect(this.ctx.destination);
     }
 
     resume() {
         if (this.ctx.state === 'suspended') this.ctx.resume();
+    }
+
+    // Basic Tone Generator
+    playTone(freq, type, duration, vol = 0.1, startTime = 0) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime + startTime);
+
+        gain.gain.setValueAtTime(0, this.ctx.currentTime + startTime);
+        gain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + startTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + startTime + duration);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start(this.ctx.currentTime + startTime);
+        osc.stop(this.ctx.currentTime + startTime + duration);
+    }
+
+    // Noise Generator (for Sand/Wind)
+    playNoise(duration, vol = 0.1) {
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const gain = this.ctx.createGain();
+
+        // Bandpass filter for "wind" effect
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.value = 1000;
+        filter.Q.value = 1;
+
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        noise.start();
     }
 
     playPlace() {
@@ -30,8 +64,126 @@ class SoundManager {
         this.playTone(440, 'square', 0.1, 0.1);
     }
 
+    // --- New Effects ---
+
+    // 1. 飞沙走石 (Flying Sand) - Rushing Wind
+    playSand() {
+        this.resume();
+        // White noise with bandpass sweep
+        const duration = 1.5;
+        const bufferSize = this.ctx.sampleRate * duration;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.Q.value = 1;
+        filter.frequency.setValueAtTime(200, this.ctx.currentTime);
+        filter.frequency.linearRampToValueAtTime(1200, this.ctx.currentTime + 0.8); // Sweep up
+        filter.frequency.linearRampToValueAtTime(400, this.ctx.currentTime + 1.5); // Sweep down
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.4, this.ctx.currentTime + 0.2);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1.5);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        noise.start();
+    }
+
+    // 2. 时光倒流 (Time Reversal) - Sci-fi Reverse
+    playTime() {
+        this.resume();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        // Pitch rises quickly then warbles
+        osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.4);
+
+        // LFO for warble
+        const lfo = this.ctx.createOscillator();
+        lfo.frequency.value = 15;
+        const lfoGain = this.ctx.createGain();
+        lfoGain.gain.value = 50;
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        lfo.start();
+
+        gain.gain.setValueAtTime(0, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.3, this.ctx.currentTime + 0.1);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.5);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.5);
+        lfo.stop(this.ctx.currentTime + 0.5);
+    }
+
+    // 3. 力拔山兮 (Strength) - Heavy Impact
+    playStrength() {
+        this.resume();
+        // Sub-bass impact
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.5); // Deep drop
+
+        gain.gain.setValueAtTime(0.8, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.5);
+
+        // Crash noise overlay
+        this.playNoise(0.3, 0.4);
+    }
+
+    playGameStart() {
+        this.resume();
+        // Rising arpeggio
+        [440, 554, 659, 880].forEach((f, i) => this.playTone(f, 'sine', 0.3, 0.2, i * 0.1));
+    }
+
     playWin() {
-        [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this.playTone(f, 'sine', 0.3, 0.2), i * 150));
+        this.resume();
+        // Fanfare: C E G C
+        const now = this.ctx.currentTime;
+        [523.25, 659.25, 783.99, 1046.50].forEach((f, i) => {
+            this.playTone(f, 'triangle', 0.4, 0.3, i * 0.15);
+        });
+        // Final chord
+        setTimeout(() => {
+            this.playTone(523.25, 'sine', 1.0, 0.2);
+            this.playTone(659.25, 'sine', 1.0, 0.2);
+            this.playTone(783.99, 'sine', 1.0, 0.2);
+        }, 600);
+    }
+
+    playLoss() {
+        this.resume();
+        // Sad descending: G E C
+        [783.99, 659.25, 523.25].forEach((f, i) => {
+            this.playTone(f, 'sine', 0.6, 0.2, i * 0.4);
+        });
+        // Low dissonant
+        setTimeout(() => {
+            this.playTone(130, 'sawtooth', 1.0, 0.2);
+            this.playTone(123, 'sawtooth', 1.0, 0.2);
+        }, 1200);
     }
 }
 
@@ -58,7 +210,7 @@ class GameState {
 
         // Highlight Tracking
         this.lastMoves = []; // [{x, y}, ...]
-        this.destroyedMarkers = []; // [{x, y}, ...]
+        this.destroyedMarkers = []; // [{x, y, duration}, ...]
         this.isFirstMoveOfTurn = true;
 
         this.soundManager = new SoundManager();
@@ -295,7 +447,7 @@ class GameState {
         this.socket.on('game_restart', (data) => {
             const btn = document.getElementById('restartBtn');
             if (btn) {
-                btn.innerText = '重新开始';
+                btn.innerText = '再来一局';
                 btn.disabled = false;
                 btn.classList.remove('waiting', 'pulse');
             }
@@ -353,22 +505,36 @@ class GameState {
         // Timer Events
         this.socket.on('timer_sync', (data) => {
             console.log('Timer Sync:', data);
-            // Sync current turn from server
-            if (data.currentTurn && data.currentTurn !== this.currentPlayer) {
+
+            // Always sync current turn from server
+            if (data.currentTurn) {
                 this.currentPlayer = data.currentTurn;
-
-                // Energy Regeneration (Online)
-                const player = this.players[this.currentPlayer];
-                if (player.energy < player.maxEnergy) {
-                    player.energy++;
-                }
-
-                // Reset Highlight Flag for new turn
-                this.isFirstMoveOfTurn = true;
-
-                this.updateUI();
             }
-            this.startTimer(data.player, data.duration, data.timestamp);
+
+            // Energy Synchronization
+            if (data.energy) {
+                this.players[1].energy = data.energy[1];
+                this.players[2].energy = data.energy[2];
+            }
+
+            // Sync Blocked Spots
+            if (data.blockedSpots) {
+                this.destroyedMarkers = data.blockedSpots;
+                // Re-render board to show/hide markers
+                for (let y = 0; y < this.boardSize; y++) {
+                    for (let x = 0; x < this.boardSize; x++) {
+                        this.renderCell(x, y);
+                    }
+                }
+            }
+
+            this.updateUI();
+
+            // Always restart timer when receiving timer_sync
+            this.isFirstMoveOfTurn = true; // Reset Highlight Flag for new turn
+            if (data.duration && data.timestamp) {
+                this.startTimer(this.currentPlayer, data.duration, data.timestamp);
+            }
         });
 
         this.socket.on('game_over', (data) => {
@@ -589,15 +755,20 @@ class GameState {
         this.gameActive = true;
         document.body.classList.add('game-active'); // Hide footer
 
-        if (serverTurn) {
+        // Priority: serverTurn > random (local only)
+        if (serverTurn !== null && serverTurn !== undefined) {
             this.currentPlayer = serverTurn;
         } else if (!this.roomId) {
+            // Local game: random start
             this.currentPlayer = Math.random() < 0.5 ? 1 : 2;
         }
+        // If online but no serverTurn provided, keep existing currentPlayer
 
         this.players[1].energy = 0;
         this.players[2].energy = 0;
         this.activeSkill = null;
+
+        this.soundManager.playGameStart(); // Play Start Sound
         this.doubleMoveRemaining = 0;
 
         // Reset highlights
@@ -622,6 +793,7 @@ class GameState {
         }
 
         this.updateUI();
+        this.initBoard();
         this.initBoard(); // Re-render board to clear old state
     }
 
@@ -652,7 +824,8 @@ class GameState {
 
         // Random speed (5s to 12s)
         const duration = 5 + Math.random() * 7;
-        item.style.animationDuration = `${duration}s`;
+        // Fix: Set full animation property to override CSS shorthand
+        item.style.animation = `fly ${duration}s linear forwards`;
 
         // Color based on player number
         if (playerNum === 1) {
@@ -690,6 +863,12 @@ class GameState {
 
         // Normal Move
         if (this.board[y][x] !== 0) return;
+
+        // Check Blocked Spots (Destroyed)
+        if (this.destroyedMarkers.some(m => m.x === x && m.y === y)) {
+            // Visual feedback?
+            return;
+        }
 
         this.placeStone(x, y, this.currentPlayer);
 
@@ -741,6 +920,8 @@ class GameState {
             this.board[data.y][data.x] = 0;
             // Add destroyed marker
             this.destroyedMarkers.push({ x: data.x, y: data.y });
+            // Remove from lastMoves (unhighlight) if it's highlighted
+            this.lastMoves = this.lastMoves.filter(m => m.x !== data.x || m.y !== data.y);
             this.renderCell(data.x, data.y);
             this.endTurn();
         } else if (data.skill === 'rebel') {
@@ -826,7 +1007,11 @@ class GameState {
 
         this.lastMoves.push({ x, y });
 
+        this.lastMoves.push({ x, y });
+
         // Also remove any destroyed marker at this location if we place a stone there
+        // Wait, with new logic, we CANNOT place stone there if marker exists.
+        // So this filter is technically redundant if we enforce validation, but good for safety.
         this.destroyedMarkers = this.destroyedMarkers.filter(m => m.x !== x || m.y !== y);
 
         this.renderCell(x, y);
@@ -892,24 +1077,21 @@ class GameState {
         }
 
         if (player.energy >= cost) {
-            this.activeSkill = skillName;
-
             if (skillName === 'double') {
+                // 飞沙走石: Execute immediately
                 player.energy -= cost;
-                this.doubleMoveRemaining = 2; // Logic: 2 moves remaining
-                // Wait, doubleMoveRemaining logic in handleCellClick decrements it.
-                // If I set it to 2, first move -> 1, second move -> 0 -> endTurn. Correct.
-                this.activeSkill = null;
+                this.doubleMoveRemaining = 2;
+                this.soundManager.playSand();
 
                 if (this.roomId) {
                     this.socket.emit('game_skill', { roomId: this.roomId, skill: 'double', cost, player: this.currentPlayer });
                 }
                 this.updateUI();
             } else {
-                // Target skills (Destroy, Rebel) - don't blur, just highlight button
-                // The updateUI will handle highlighting the active skill button
+                // Other skills: Set active and wait for target selection
+                this.activeSkill = skillName;
+                this.updateUI();
             }
-            this.updateUI();
         }
     }
 
@@ -917,9 +1099,14 @@ class GameState {
         if (this.board[y][x] === 0) return; // Can only destroy stones
 
         this.board[y][x] = 0;
-        this.destroyedMarkers.push({ x, y });
+        // Local: Add with duration 2
+        this.destroyedMarkers.push({ x, y, duration: 2 });
+
+        // Remove from lastMoves (unhighlight) if it's highlighted
+        this.lastMoves = this.lastMoves.filter(m => m.x !== x || m.y !== y);
+
         this.renderCell(x, y);
-        this.soundManager.playPlace(); // Sound
+        this.soundManager.playTime(); // Play Time Sound
 
         // Deduct Energy
         this.players[this.currentPlayer].energy -= 2;
@@ -941,7 +1128,7 @@ class GameState {
         this.lastMoves = [{ x, y }];
         document.querySelectorAll('.cell').forEach(c => c.classList.remove('last-move'));
         this.renderCell(x, y);
-        this.soundManager.playPlace();
+        this.soundManager.playStrength(); // Play Strength Sound
 
         // Deduct Energy
         this.players[this.currentPlayer].energy -= 3;
@@ -969,6 +1156,18 @@ class GameState {
         this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
         this.isFirstMoveOfTurn = true; // Next move will be first of new turn
 
+        // Local: Decrement Blocked Spots
+        if (!this.roomId && this.destroyedMarkers.length > 0) {
+            this.destroyedMarkers.forEach(m => m.duration--);
+            this.destroyedMarkers = this.destroyedMarkers.filter(m => m.duration > 0);
+            // Re-render to update markers
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    this.renderCell(x, y);
+                }
+            }
+        }
+
         const player = this.players[this.currentPlayer];
         if (player.energy < player.maxEnergy) {
             player.energy++;
@@ -984,7 +1183,8 @@ class GameState {
     updateUI() {
         const indicator = document.getElementById('turnIndicator');
         if (indicator) {
-            indicator.innerText = `玩家 ${this.currentPlayer} 回合`;
+            const currentPlayerName = this.players[this.currentPlayer].name || `玩家 ${this.currentPlayer}`;
+            indicator.innerText = `${currentPlayerName} 回合`;
             indicator.style.color = this.currentPlayer === 1 ? 'var(--p1-color)' : 'var(--p2-color)';
             indicator.style.borderColor = this.currentPlayer === 1 ? 'var(--p1-color)' : 'var(--p2-color)';
         }
@@ -1113,7 +1313,15 @@ class GameState {
             : 'linear-gradient(45deg, var(--p2-color), #fff)';
         text.style.webkitBackgroundClip = 'text';
 
+        text.style.webkitBackgroundClip = 'text';
+
         overlay.classList.remove('hidden');
+
+        if (winner === this.myPlayerNum || (!this.roomId && winner === 1)) {
+            this.soundManager.playWin();
+        } else {
+            this.soundManager.playLoss();
+        }
     }
 
     resetUIState() {

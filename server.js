@@ -173,6 +173,7 @@ io.on('connection', (socket) => {
                 score: { 1: 0, 2: 0 },
                 energy: { 1: 0, 2: 0 },
                 doubleMoveRemaining: 0,
+                blockedSpots: [], // [{x, y, duration}]
                 restartRequests: new Set()
             };
 
@@ -218,7 +219,9 @@ io.on('connection', (socket) => {
                     timer: null,
                     timerStart: null,
                     score: { 1: 0, 2: 0 },
-                    energy: { 1: 0, 2: 0 }
+                    score: { 1: 0, 2: 0 },
+                    energy: { 1: 0, 2: 0 },
+                    blockedSpots: []
                 };
                 socket.join(roomId);
                 socket.emit('waiting_for_match');
@@ -256,6 +259,7 @@ io.on('connection', (socket) => {
             timerStart: null,
             score: { 1: 0, 2: 0 }, // Score Tracking
             energy: { 1: 0, 2: 0 }, // Energy Tracking
+            blockedSpots: [],
             doubleMoveRemaining: 0,
             restartRequests: new Set()
         };
@@ -307,6 +311,12 @@ io.on('connection', (socket) => {
 
             // Validate Coordinates
             if (!isValid(x, y)) return;
+
+            // Check Blocked Spots
+            if (room.blockedSpots.some(s => s.x === x && s.y === y)) {
+                socket.emit('error_message', '该位置已被破坏，暂时无法落子');
+                return;
+            }
 
             if (room.board[y][x] === 0) {
                 room.board[y][x] = data.player;
@@ -364,6 +374,9 @@ io.on('connection', (socket) => {
             if (data.skill === 'destroy') {
                 if (!isValid(data.x, data.y)) return;
                 room.board[data.y][data.x] = 0;
+                // Block the spot for 1 round (2 turns: opponent's + mine)
+                // Decremented in startTurnTimer
+                room.blockedSpots.push({ x: data.x, y: data.y, duration: 2 });
             } else if (data.skill === 'rebel') {
                 if (!isValid(data.x, data.y)) return;
                 room.board[data.y][data.x] = data.player;
@@ -405,6 +418,7 @@ io.on('connection', (socket) => {
         room.restartRequests.clear();
         // room.score = { 1: 0, 2: 0 }; // Keep score!
         room.energy = { 1: 0, 2: 0 }; // Reset energy
+        room.blockedSpots = [];
 
         io.to(roomId).emit('game_restart', {
             currentTurn: room.currentTurn
@@ -613,11 +627,18 @@ function startTurnTimer(roomId, regenEnergy = true) {
 
     // I will add a separate helper or just update `startTurnTimer` to always regen?
     // No, that would regen on timeout.
+    // Decrement Blocked Spots Duration
+    if (room.blockedSpots.length > 0) {
+        room.blockedSpots.forEach(s => s.duration--);
+        room.blockedSpots = room.blockedSpots.filter(s => s.duration > 0);
+    }
+
     io.to(roomId).emit('timer_sync', {
-        player: room.currentTurn,
+        currentTurn: room.currentTurn,
         duration: TURN_DURATION,
         timestamp: room.timerStart,
-        currentTurn: room.currentTurn
+        energy: room.energy,
+        blockedSpots: room.blockedSpots
     });
 
     room.timer = setTimeout(() => {
