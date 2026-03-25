@@ -42,9 +42,33 @@ class PlatformController {
             this.myPlayerNum = data.myPlayerNum;
             this.hideMenu();
             this.enterLobby(data.players);
+            
+            // 更新得分面板
+            if (data.scores) {
+                document.getElementById('p1Score').innerText = data.scores[1] || 0;
+                document.getElementById('p2Score').innerText = data.scores[2] || 0;
+            }
+
+            // 更新对手离线状态：如果只有 1 人，将对手卡片置灰
+            const opponentNum = this.myPlayerNum === 1 ? 2 : 1;
+            const opponentActive = data.players.find(p => p.playerNum === opponentNum);
+            const pCard = document.querySelector(`.player-panel.p${opponentNum}-panel`);
+            if (pCard) {
+                if (opponentActive) {
+                    pCard.classList.remove('offline');
+                    document.getElementById(`p${opponentNum}Name`).innerText = opponentActive.nickname;
+                } else {
+                    pCard.classList.add('offline');
+                    if (data.opponentName) {
+                        document.getElementById(`p${opponentNum}Name`).innerText = `${data.opponentName} (离线)`;
+                    } else {
+                        document.getElementById(`p${opponentNum}Name`).innerText = '等待对手...';
+                    }
+                }
+            }
         });
 
-        this.socket.on('lobby_selections', (selections) => {
+        this.socket.on('lobby_selections', (selections, sudokuDifficulty) => {
             ['gomoku', 'sudoku'].forEach(gameId => {
                 const container = document.getElementById(`sel_${gameId}`);
                 if (container) container.innerHTML = '';
@@ -74,6 +98,48 @@ class PlatformController {
                     }
                 }
             }
+            
+            // 更新数独难度按钮状态
+            if (sudokuDifficulty) {
+                const diffBtns = document.querySelectorAll('.diff-btn');
+                // 检查是否对手已选了数独（我还没选）
+                const opponentIdx = this.myPlayerNum === 1 ? '2' : '1';
+                const opponentSelectedSudoku = selections[opponentIdx] === 'sudoku';
+                const iSelectedSudoku = selections[this.myPlayerNum] === 'sudoku';
+                
+                diffBtns.forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.dataset.diff === sudokuDifficulty) {
+                        btn.classList.add('active');
+                    }
+                    // 对手已选 sudoku 且我还没选 → 锁定难度（我是后选者）
+                    if (opponentSelectedSudoku && !iSelectedSudoku) {
+                        btn.disabled = true;
+                        btn.classList.add('locked');
+                    }
+                });
+            }
+        });
+
+        this.socket.on('opponent_offline', (data) => {
+            this.showToast(data.message);
+            // 对方卡片置灰
+            const opponentNum = data.playerNum;
+            const pCard = document.querySelector(`.player-panel.p${opponentNum}-panel`);
+            if (pCard) {
+                pCard.classList.add('offline');
+                const nameNode = document.getElementById(`p${opponentNum}Name`);
+                if (nameNode) nameNode.innerText += ' (离线)';
+            }
+            
+            // 更新积分（在只有 1 人时显示最新积分）
+            if (data.scores) {
+                document.getElementById('p1Score').innerText = data.scores[1] || 0;
+                document.getElementById('p2Score').innerText = data.scores[2] || 0;
+            }
+
+            // 重置大厅 UI 为初始状态，等待新匹配
+            this.mountLobby(); 
         });
 
         this.socket.on('game_proposal_received', (data) => {
@@ -136,6 +202,8 @@ class PlatformController {
         this.socket.on('game_restart', (data) => this.activeGameRenderer?.onGameRestart?.(data));
         this.socket.on('restart_request_received', (data) => this.activeGameRenderer?.onRestartRequestReceived?.(data));
         this.socket.on('restart_request_ack', (data) => this.activeGameRenderer?.onRestartRequestAck?.(data));
+        // Sudoku-specific events
+        this.socket.on('sudoku_move_result', (data) => this.activeGameRenderer?.onSudokuMoveResult?.(data));
         this.socket.on('opponent_left', () => {
             this.showToast('对手已离开房间！', true);
             alert('对手已断开连接！游戏结束。');
@@ -263,9 +331,31 @@ class PlatformController {
         setTimeout(() => item.remove(), duration * 1000);
     }
     
-    selectGame(gameId) {
+    selectGame(gameId, difficulty) {
         if (!this.roomId) return this.showToast('不在房间内');
-        this.socket.emit('player_select_game', { roomId: this.roomId, gameId });
+        const payload = { roomId: this.roomId, gameId };
+        if (difficulty) payload.difficulty = difficulty;
+        this.socket.emit('player_select_game', payload);
+    }
+
+    // 数独：点击难度按钮即选择游戏，并允许反复点击切换难度
+    selectSudokuDifficulty(diff) {
+        // 更新本地按钮高亮
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.diff === diff);
+        });
+        this._selectedSudokuDifficulty = diff;
+        this._sudokuSelected = true;
+        
+        // 直接触发选择动作
+        this.selectGame('sudoku', diff);
+    }
+
+    // 数独：确认选择游戏
+    confirmSudoku() {
+        const diff = this._selectedSudokuDifficulty || 'medium';
+        this._sudokuSelected = true;
+        this.selectGame('sudoku', diff);
     }
 
     mountLobby() {
@@ -274,19 +364,31 @@ class PlatformController {
             this.activeGameRenderer = null;
         }
         
+        // 重置数独选择状态
+        this._sudokuSelected = false;
+        this._selectedSudokuDifficulty = 'medium';
+        
         const boardContainer = document.getElementById('boardContainer');
         boardContainer.innerHTML = `
             <div id="lobbySelector" class="lobby-selector">
-                <h2 style="margin-bottom: 20px; color: var(--p1-color);">请选择要游玩的游戏 (双方选择一致即开始)</h2>
+                <h2 style="margin-bottom: 20px; color: var(--p1-color);">请选择要游玩的游戏</h2>
                 <div class="game-cards">
                     <div class="game-card" id="card_gomoku" onclick="platform.selectGame('gomoku')">
                         <h3>技能五子棋</h3>
                         <p>经典的五子棋结合炫酷技能，连成五子即可获胜</p>
                         <div class="selectors" id="sel_gomoku"></div>
                     </div>
-                    <div class="game-card" id="card_sudoku" onclick="platform.selectGame('sudoku')">
+                    <div class="game-card" id="card_sudoku" onclick="platform.confirmSudoku()">
                         <h3>对战数独</h3>
                         <p>双人实时数独对决，比拼速度与逻辑</p>
+                        <div class="sudoku-difficulty-selector">
+                            <span class="difficulty-label">选择难度：</span>
+                            <div class="difficulty-btns" id="difficultyBtns">
+                                <button class="diff-btn" data-diff="easy" onclick="event.stopPropagation(); platform.selectSudokuDifficulty('easy')">简单</button>
+                                <button class="diff-btn active" data-diff="medium" onclick="event.stopPropagation(); platform.selectSudokuDifficulty('medium')">中等</button>
+                                <button class="diff-btn" data-diff="hard" onclick="event.stopPropagation(); platform.selectSudokuDifficulty('hard')">困难</button>
+                            </div>
+                        </div>
                         <div class="selectors" id="sel_sudoku"></div>
                     </div>
                 </div>

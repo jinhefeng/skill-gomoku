@@ -240,6 +240,13 @@ h1 {
     border-color: var(--p2-color);
 }
 
+.player-panel.offline {
+    opacity: 0.4;
+    filter: grayscale(1);
+    pointer-events: none;
+    transition: all 0.5s ease;
+}
+
 .player-info {
     display: flex;
     justify-content: space-between;
@@ -1247,4 +1254,340 @@ h1 {
 .game-card p {
     font-size: 0.9rem;
     opacity: 0.8;
+}
+
+/* Sudoku Difficulty Selector in Lobby Card */
+.sudoku-difficulty-selector {
+    margin-top: 18px;
+    margin-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.difficulty-label {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    color: var(--text-color);
+}
+
+.difficulty-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.diff-btn {
+    flex: 1;
+    padding: 8px 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: var(--font-main);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.diff-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    transform: translateY(-1px);
+}
+
+.diff-btn.active {
+    background: rgba(0, 242, 255, 0.15);
+    border-color: var(--p1-color);
+    color: var(--p1-color);
+    box-shadow: 0 0 10px rgba(0, 242, 255, 0.15);
+}
+
+.diff-btn.locked,
+.diff-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ======================== Sudoku Game Styles ======================== */
+
+.sudoku-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+}
+
+/* 9x9 数独棋盘 */
+.sudoku-board {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    grid-template-rows: repeat(9, 1fr);
+    width: min(520px, 88vw, 60vh);
+    aspect-ratio: 1 / 1;
+    background: rgba(20, 30, 50, 0.9);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* 草稿模式 - 整板背景色变化 */
+.sudoku-board.draft-mode {
+    background: rgba(40, 35, 20, 0.9);
+    box-shadow: 0 0 30px rgba(255, 200, 50, 0.15);
+}
+
+/* 单元格 */
+.sudoku-cell {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    transition: background 0.15s ease;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* 3x3 宫格粗分隔线 */
+.sudoku-cell.block-left {
+    border-left: 2px solid rgba(255, 255, 255, 0.35);
+}
+.sudoku-cell.block-top {
+    border-top: 2px solid rgba(255, 255, 255, 0.35);
+}
+
+/* 选中格 */
+.sudoku-cell.selected {
+    background: rgba(0, 242, 255, 0.2) !important;
+    box-shadow: inset 0 0 0 2px var(--p1-color);
+}
+
+/* 同行/同列/同宫高亮 */
+.sudoku-cell.highlighted {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* 悬浮 */
+.sudoku-cell:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* 错误闪烁 */
+.sudoku-cell.error-flash {
+    animation: sudoku-error 0.8s ease-out;
+}
+
+@keyframes sudoku-error {
+    0% { background: rgba(255, 60, 60, 0.35); }
+    100% { background: transparent; }
+}
+
+/* 数字样式 */
+.cell-number {
+    font-size: calc(min(520px, 88vw, 60vh) / 9 * 0.5);
+    font-weight: 700;
+    font-family: 'Outfit', monospace, sans-serif;
+    line-height: 1;
+    z-index: 1;
+    animation: sudoku-place 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes sudoku-place {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* 预设格数字 */
+.cell-number.preset {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+/* 玩家1 所有权 */
+.cell-number.p1-owned {
+    color: var(--p1-color);
+    text-shadow: 0 0 8px var(--p1-glow);
+}
+
+/* 玩家2 所有权 */
+.cell-number.p2-owned {
+    color: var(--p2-color);
+    text-shadow: 0 0 8px var(--p2-glow);
+}
+
+/* 草稿九宫格 */
+.draft-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: 100%;
+    height: 100%;
+    padding: 1px;
+}
+
+.draft-num {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: calc(min(520px, 88vw, 60vh) / 9 * 0.2);
+    color: rgba(255, 200, 100, 0.7);
+    font-weight: 500;
+    line-height: 1;
+}
+
+/* 数字键盘 */
+.sudoku-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: min(520px, 88vw, 60vh);
+}
+
+.sudoku-numpad {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 4px;
+    width: 100%;
+}
+
+.numpad-btn {
+    aspect-ratio: 1 / 1;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: clamp(16px, 2.5vmin, 24px);
+    font-weight: 700;
+    font-family: var(--font-main);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.numpad-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.numpad-btn:active {
+    transform: translateY(0);
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* 功能按钮行 */
+.sudoku-func-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+
+.func-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    font-family: var(--font-main);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+}
+
+.func-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateY(-1px);
+}
+
+/* 草稿按钮激活态 */
+.func-btn.draft-btn.active {
+    background: rgba(255, 200, 50, 0.25);
+    border-color: rgba(255, 200, 50, 0.6);
+    color: #ffc832;
+    box-shadow: 0 0 15px rgba(255, 200, 50, 0.2);
+}
+
+
+/* 数独结算 Overlay */
+.sudoku-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(3px);
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.sudoku-overlay-content {
+    background: rgba(15, 23, 42, 0.95);
+    padding: 40px;
+    border-radius: 20px;
+    border: var(--glass-border);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    text-align: center;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    max-width: 400px;
+    width: 85%;
+}
+
+.sudoku-overlay-content h2 {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
+    background: linear-gradient(45deg, var(--p1-color), var(--p2-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.score-summary {
+    font-size: 1.1rem;
+    opacity: 0.8;
+    margin-bottom: 25px;
+}
+
+/* 移动端数独适配 */
+@media (max-width: 800px) {
+    .sudoku-board {
+        width: min(88vw, 50vh);
+    }
+    .sudoku-controls {
+        width: min(88vw, 50vh);
+    }
+    .sudoku-cell {
+        min-height: 35px;
+    }
+    .numpad-btn {
+        border-radius: 6px;
+    }
+    .sudoku-overlay-content {
+        padding: 25px;
+    }
+    .sudoku-overlay-content h2 {
+        font-size: 1.8rem;
+    }
 }

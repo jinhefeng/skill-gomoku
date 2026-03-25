@@ -9,7 +9,7 @@
     - [x] 生成 `/docs/interaction_spec.md`
     - [x] 完成任务总结与影响分析 (Walkthrough)
 
-- [x] 第二阶段：从单游戏向“游戏对战平台”架构升级 (Completed)
+- [x] 第二阶段：从单游戏向"游戏对战平台"架构升级 (Completed)
     - [x] **2.1 架构设计与共识定义**
         - [x] 编写《架构升级与重构影响分析报告》
         - [x] 定义通用的 `BaseEngine.js` 与 `GameContext` 接口规范
@@ -34,3 +34,37 @@
 - [x] 第四阶段：规范总结与沉淀 (Completed)
     - [x] 将沉淀出来的引擎设计经验覆写进 `engine-architecture.md` 开发公约
     - [x] 将最新的双向选择模式及时更新到 `domain_model` / `interaction_spec` 中。
+
+- [ ] **第五阶段：对战数独 (Sudoku) 独立游戏开发 [InProgress]**
+    - [x] **5.1 方案定义 (Definition Phase)**
+        - [x] 编写 `games/sudoku/docs/functional_spec.md`
+        - [x] 编写 `games/sudoku/docs/interaction_spec.md`
+        - [x] 用户确认 (LGTM)
+    - [x] **5.2 后端逻辑实现 (Engine Logic)**
+        - [x] 封装数独生成算法（分 Easy/Medium/Hard 难度，保证唯一解）
+        - [x] 开发 `SudokuEngine.js` 基类方法与游戏内冲突仲裁逻辑
+        - [x] 积分奖惩系统 (+1/-2) 及获胜判定
+        - [x] 重开协商机制 (restart request/agree)
+    - [x] **5.3 前端渲染实现 (Renderer Logic)**
+        - [x] 动态构建 9x9 响应式棋盘 DOM 结构 (Renderer Isolation 规范)
+        - [x] 开发屏显数字键盘（Mobile 优先）与草稿模式切换功能
+        - [x] 实现错误底色告警特效（CSS 过渡）与音效资源集成
+        - [x] 选中格 + 同行/同列/同宫联动高亮
+        - [x] 所有权颜色系统（P1=Cyan, P2=Magenta, 预设=白）
+    - [x] **5.4 平台集成**
+        - [x] PlatformController 注册 sudoku_move_result 事件路由
+        - [x] CSS 追加数独完整样式（含移动端适配）
+    - [x] **5.5 UI 优化与交互补全 (Completed)**
+        - [x] 修复玩家卡片得分重复显示（移除 Renderer 自行注入的 sudoku-player-stats）
+        - [x] 放大数独棋盘（桌面端从 400px→520px，同步调大字号与控件）
+        - [x] 实现大厅难度选择 UI（先选者决定难度，后选者被动接受）
+            - [x] 前端：大厅卡片内嵌难度选项 + selectGame 携带 difficulty
+            - [x] 后端：player_select_game 缓存 difficulty + 传入 engine
+        - [x] **新增：大厅离线感知与智能对战 (Completed)**
+            - [x] 离线检测：对手退出时卡片置灰并显示“(离线)”
+            - [x] 智能匹配：大厅单人时自动进入匹配池，支持填补半满房间
+            - [x] 积分机制：同名玩家重连继承积分，新玩家加入则双方归零
+    - [ ] **5.6 联调与验证**
+        - [ ] 启动服务器联调 P1/P2 同时填入的延迟补偿与抢填逻辑
+        - [ ] 移动端 Safari/Chrome 高度适配验证
+        - [ ] 草稿模式全流程验证
