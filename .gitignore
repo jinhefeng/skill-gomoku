@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+
+# Logs
+server.log
+npm-debug.log*
+
+# Other
+stats.json

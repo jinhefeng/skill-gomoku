@@ -13,9 +13,14 @@
 
 <body>
     <div class="app-container">
-        <header class="game-header">
-            <h1>技能五子棋</h1>
-            <div class="turn-indicator" id="turnIndicator">等待开始...</div>
+        <header class="game-header" style="position: relative; width: 100%; display: flex; justify-content: center; align-items: center; min-height: 60px;">
+            <div style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
+                <h1 id="mainTitle" style="margin: 0; display: inline-block;">🦁 游戏大厅</h1>
+                <button id="returnLobbyBtn" class="menu-btn small hidden" onclick="platform.requestReturnLobby()" style="position: absolute; left: calc(100% + 20px); white-space: nowrap; padding: 5px 15px; top: 50%; transform: translateY(-50%);">返回大厅</button>
+            </div>
+            <div class="header-actions" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%);">
+                <div class="turn-indicator hidden" id="turnIndicator">等待开始...</div>
+            </div>
         </header>
 
         <!-- Menu Overlay -->
@@ -23,17 +28,17 @@
             <div class="menu-box">
                 <h2>选择模式</h2>
                 <input type="text" id="nicknameInput" class="nickname-input" placeholder="请输入你的昵称 (必填)">
-                <button class="menu-btn" onclick="game.startLocal()">本地双人</button>
-                <button class="menu-btn" onclick="game.startRandom()">随机匹配</button>
+                <button class="menu-btn" onclick="platform.showToast('单机模式目前在平台对接期暂不开放', true)">本地双人</button>
+                <button class="menu-btn" onclick="platform.startRandom()">随机匹配</button>
                 <div class="divider"></div>
-                <button class="menu-btn" onclick="game.createPrivate()">创建房间</button>
+                <button class="menu-btn" onclick="platform.createPrivate()">创建房间</button>
                 <div class="join-box">
                     <input type="text" id="roomIdInput" placeholder="输入房间号">
-                    <button class="menu-btn small" onclick="game.joinPrivate()">加入房间</button>
+                    <button class="menu-btn small" onclick="platform.joinPrivate()">加入房间</button>
                 </div>
                 <div id="waitingMsg" class="waiting-msg hidden">
                     <span id="waitingText">正在寻找对手...</span>
-                    <div id="roomIdBadge" class="room-id-badge hidden" onclick="game.copyRoomId()" title="点击复制">
+                    <div id="roomIdBadge" class="room-id-badge hidden" onclick="platform.copyRoomId()" title="点击复制">
                         <span class="room-label">房间号:</span>
                         <span id="roomIdDisplay"></span>
                         <span class="copy-hint">(点击复制)</span>
@@ -48,79 +53,31 @@
 
             <!-- Player 1 Panel -->
             <div class="player-panel p1-panel" id="p1Panel">
-                <div class="timer-display hidden" id="p1Timer">10s</div>
                 <div class="player-info">
                     <h2 id="p1Name">玩家 1 (你)</h2>
                     <span id="p1Score" class="player-score">0</span>
-                    <div class="energy-bar">
-                        <div class="energy-fill" id="p1EnergyFill" style="width: 0%"></div>
-                        <span class="energy-text" id="p1EnergyText">0/5 能量</span>
-                    </div>
                 </div>
-                <div class="skills-container">
-                    <button class="skill-btn" data-skill="double" data-cost="4" onclick="game.activateSkill('double')">
-                        <span class="skill-icon">🌪️</span>
-                        <span class="skill-name">飞沙走石</span>
-                        <span class="skill-cost">4 能量</span>
-                    </button>
-                    <button class="skill-btn" data-skill="rebel" data-cost="3" onclick="game.activateSkill('rebel')">
-                        <span class="skill-icon">🏔️</span>
-                        <span class="skill-name">力拔山兮</span>
-                        <span class="skill-cost">3 能量</span>
-                    </button>
-                    <button class="skill-btn" data-skill="destroy" data-cost="2"
-                        onclick="game.activateSkill('destroy')">
-                        <span class="skill-icon">⏳</span>
-                        <span class="skill-name">时光倒流</span>
-                        <span class="skill-cost">2 能量</span>
-                    </button>
-                </div>
+                <div class="game-specific-container empty" id="p1GameArea"></div>
             </div>
 
-            <!-- Game Board -->
-            <div class="board-container">
-                <div id="gameBoard" class="game-board"></div>
-                <div id="winOverlay" class="win-overlay hidden">
-                    <h2 id="winnerText">玩家 1 获胜!</h2>
-                    <button id="restartBtn" class="restart-btn" onclick="game.restart()">再来一局</button>
+            <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+                <div class="board-container" id="boardContainer">
                 </div>
-
+                
                 <!-- Chat Input -->
                 <div class="chat-bar hidden" id="chatBar">
                     <input type="text" id="chatInput" placeholder="发送弹幕 (支持 Emoji)..." maxlength="50">
-                    <button onclick="game.sendDanmaku()">🚀</button>
+                    <button onclick="platform.sendDanmaku()">🚀</button>
                 </div>
             </div>
 
             <!-- Player 2 Panel -->
             <div class="player-panel p2-panel" id="p2Panel">
-                <div class="timer-display hidden" id="p2Timer">10s</div>
                 <div class="player-info">
                     <h2 id="p2Name">玩家 2 (对手)</h2>
                     <span id="p2Score" class="player-score">0</span>
-                    <div class="energy-bar">
-                        <div class="energy-fill" id="p2EnergyFill" style="width: 0%"></div>
-                        <span class="energy-text" id="p2EnergyText">0/5 能量</span>
-                    </div>
                 </div>
-                <div class="skills-container">
-                    <button class="skill-btn" data-skill="double" data-cost="4" onclick="game.activateSkill('double')">
-                        <span class="skill-icon">🌪️</span>
-                        <span class="skill-name">飞沙走石</span>
-                        <span class="skill-cost">4 能量</span>
-                    </button>
-                    <button class="skill-btn" data-skill="rebel" data-cost="3" onclick="game.activateSkill('rebel')">
-                        <span class="skill-icon">🏔️</span>
-                        <span class="skill-name">力拔山兮</span>
-                        <span class="skill-cost">3 能量</span>
-                    </button>
-                    <button class="skill-btn" data-skill="destroy" data-cost="2"
-                        onclick="game.activateSkill('destroy')">
-                        <span class="skill-icon">⏳</span>
-                        <span class="skill-name">时光倒流</span>
-                        <span class="skill-cost">2 能量</span>
-                    </button>
-                </div>
+                <div class="game-specific-container empty" id="p2GameArea"></div>
             </div>
         </main>
 
@@ -130,7 +87,7 @@
                 <span class="stat-icon">🟢</span>
                 <span id="onlineCount">0</span> 在线
             </div>
-            <div class="stat-item" onclick="game.showVisitHistory()">
+            <div class="stat-item" onclick="platform.showVisitHistory()">
                 <span class="stat-icon">👁️</span>
                 <span id="totalVisits">0</span> 访问
             </div>
@@ -148,8 +105,23 @@
             </div>
         </div>
 
+        <!-- Switch Game Request Modal -->
+        <div id="switchModal" class="modal hidden">
+            <div class="modal-content">
+                <h3 id="switchModalTitle">🎮 游戏状态请求</h3>
+                <p id="switchText">对手发来了一条状态变更请求...是否接受？</p>
+                <div style="display: flex; justify-content: space-around; margin-top: 20px;">
+                    <button class="menu-btn small" onclick="platform.respondSwitch(true)">接受 (Accept)</button>
+                    <button class="menu-btn small" style="background:#ff4444" onclick="platform.respondSwitch(false)">拒绝 (Decline)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Toast Container -->
+        <div id="globalToast" class="toast hidden"></div>
+
         <!-- GitHub Footer -->
-        <footer class="github-footer">
+        <footer class="github-footer" id="githubFooter">
             <a href="https://github.com/jinhefeng/skill-gomoku/" target="_blank">
                 <svg height="24" width="24" viewBox="0 0 16 16" fill="currentColor">
                     <path
@@ -161,7 +133,14 @@
         </footer>
     </div>
     <script src="/socket.io/socket.io.js"></script>
-    <script src="script.js"></script>
+    <script src="SoundManager.js"></script>
+    <script src="games/gomoku/renderer.js"></script>
+    <script src="games/sudoku/renderer.js"></script>
+    <script src="PlatformController.js"></script>
+    <script>
+        // Init platform
+        window.platform = new PlatformController();
+    </script>
 </body>
 
 </html>
