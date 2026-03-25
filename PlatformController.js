@@ -112,8 +112,8 @@ class PlatformController {
             
             this.hideMenu();
             document.getElementById('githubFooter').classList.add('hidden');
+            document.getElementById('statsWidget').classList.add('hidden');
             document.getElementById('returnLobbyBtn').classList.remove('hidden');
-            document.getElementById('turnIndicator').classList.remove('hidden');
             
             this.soundManager.playGameStart();
             
@@ -214,6 +214,7 @@ class PlatformController {
         document.getElementById('returnLobbyBtn').classList.add('hidden');
         document.getElementById('turnIndicator').classList.add('hidden');
         document.getElementById('githubFooter').classList.remove('hidden');
+        document.getElementById('statsWidget').classList.remove('hidden');
         
         this.mountLobby();
         

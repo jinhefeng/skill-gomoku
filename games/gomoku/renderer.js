@@ -41,7 +41,7 @@ class GomokuRenderer {
     injectSkills() {
         // Embed energy bar UI for Gomoku specifics
         const energyHTML = (pNum) => `
-            <div class="energy-bar" style="margin-bottom: 25px;">
+            <div class="energy-bar" style="margin-bottom: 8px;">
                 <div class="energy-fill" id="p${pNum}EnergyFill" style="width: 0%"></div>
                 <span class="energy-text" id="p${pNum}EnergyText">0/5 能量</span>
             </div>
@@ -303,11 +303,6 @@ class GomokuRenderer {
     }
 
     updateUI() {
-        const indicator = document.getElementById('turnIndicator');
-        const isMyTurn = this.currentTurn === this.platform.myPlayerNum;
-        indicator.innerText = isMyTurn ? '你的回合' : '对手回合';
-        indicator.style.color = isMyTurn ? 'white' : 'gray';
-
         document.getElementById('p1Panel').classList.toggle('active', this.currentTurn === 1);
         document.getElementById('p2Panel').classList.toggle('active', this.currentTurn === 2);
         

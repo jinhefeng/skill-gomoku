@@ -1,10 +1,6 @@
 {
-  "totalVisits": 382,
+  "totalVisits": 406,
   "visitHistory": [
-    {
-      "time": "5:00",
-      "count": 73
-    },
     {
       "time": "6:00",
       "count": 73
@@ -95,8 +91,12 @@
     },
     {
       "time": "23:00",
-      "count": 382
+      "count": 386
+    },
+    {
+      "time": "0:00",
+      "count": 406
     }
   ],
-  "lastUpdate": "2026-03-25T15:49:26.928Z"
+  "lastUpdate": "2026-03-25T16:26:24.019Z"
 }

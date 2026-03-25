@@ -60,14 +60,7 @@ h1 {
 }
 
 .turn-indicator {
-    font-size: 1.2rem;
-    font-weight: 500;
-    padding: 8px 20px;
-    background: var(--panel-bg);
-    border-radius: 20px;
-    border: var(--glass-border);
-    backdrop-filter: blur(10px);
-    transition: all 0.3s ease;
+    display: none !important;
 }
 
 .game-arena {
@@ -384,16 +377,13 @@ h1 {
     display: grid;
     grid-template-columns: repeat(15, 1fr);
     grid-template-rows: repeat(15, 1fr);
-    /* Responsive size: 70% of viewport min dimension, max 560px */
+    /* Responsive size */
     width: min(560px, 70vmin);
     height: min(560px, 70vmin);
-    background-image:
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    /* Dynamic grid size: 100% / 15 cells */
-    background-size: calc(100% / 15) calc(100% / 15);
-    background-position: center;
-    border: 2px solid var(--grid-line);
+    position: relative;
+    /* 无背景网格线，改由 .cell 伪元素自绘十字线 */
+    background: none;
+    border: none;
 }
 
 /* Chat Bar */
@@ -540,7 +530,63 @@ h1 {
     align-items: center;
 }
 
-.cell:hover::after {
+/* 用伪元素在每个 cell 中心绘制十字网格线 */
+.cell::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 1px;
+    height: 100%;
+    background: var(--grid-line);
+    transform: translateX(-0.5px);
+    pointer-events: none;
+    z-index: 0;
+}
+.cell::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 100%;
+    height: 1px;
+    background: var(--grid-line);
+    transform: translateY(-0.5px);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* 剪裁最外圈格子的向外延伸线段，只保留到中心点 */
+/* 第一列：左侧截断 */
+.cell:nth-child(15n+1)::after { left: 50%; width: 50%; }
+/* 最后一列：右侧截断 */
+.cell:nth-child(15n)::after { width: 50%; }
+/* 第一行：顶部截断 */
+.cell:nth-child(-n+15)::before { top: 50%; height: 50%; }
+/* 最后一行：底部截断 */
+.cell:nth-child(n+211)::before { height: 50%; }
+
+/* 悬浮落子预览：在交叉点显示一个半透明阴影 */
+.cell:hover {
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 50%);
+}
+
+/* 棋盘外框：精确环绕最外围交叉点形成实体棋盘的边界线 */
+.game-board::before {
+    content: '';
+    position: absolute;
+    /* 半个格子的偏移量 = 100% / 30 */
+    top: calc(100% / 30);
+    left: calc(100% / 30);
+    right: calc(100% / 30);
+    bottom: calc(100% / 30);
+    border: 2px solid var(--grid-line);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* 悬浮落子预览 */
+.cell:hover .stone-preview {
     content: '';
     width: 30%;
     height: 30%;
@@ -553,7 +599,23 @@ h1 {
     height: 80%;
     border-radius: 50%;
     position: relative;
+    z-index: 2; /* 确保在网格线上方 */
     animation: placeStone 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* 最后一手的高亮强化：在棋子中心增加一个明显的发光白点 */
+.cell.last-move .stone::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background: #fff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 10px #fff;
+    z-index: 3;
 }
 
 .stone.p1 {
@@ -745,7 +807,7 @@ h1 {
 
 /* Last Move Highlight */
 .last-move {
-    box-shadow: 0 0 15px 2px #fff, inset 0 0 10px rgba(255, 255, 255, 0.5);
+    /* 删除原有的占据整个方形格子的全局发光框，将特权让给 .stone::before 即圆形炫光 */
     z-index: 5;
 }
 
@@ -969,14 +1031,28 @@ h1 {
     .board-container {
         order: 2;
         /* Board in middle */
-        padding: 10px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        width: calc(100vw - 20px);
+        box-sizing: border-box;
+        padding: 12px; /* 给边缘棋子留出位置，同时增加质感 */
+        
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        /* 恢复原有的深色深度质感 */
+        background: var(--panel-bg);
+        border: var(--glass-border);
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
 
     .game-board {
-        /* Larger board on mobile relative to width */
-        width: min(90vw, 50vh);
-        height: min(90vw, 50vh);
+        /* 移动端：填满已设置宽度的父容器 */
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1;
+        max-width: 100%;
+        margin: 0;
     }
 
     .chat-bar {
@@ -988,59 +1064,91 @@ h1 {
         max-width: 400px;
         flex-direction: row;
         align-items: center;
-        padding: 10px 15px;
-        gap: 15px;
+        padding: 8px 12px;
+        gap: 10px;
         min-height: auto;
     }
 
     .p1-panel {
         order: 1;
-        /* P1 on top */
     }
 
     .p2-panel {
         order: 3;
-        /* P2 on bottom */
     }
 
     .player-info {
-        flex: 1;
+        flex: 0 0 auto;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
     }
 
     .player-info h2 {
         margin: 0;
-        font-size: 1rem;
+        font-size: 0.9rem;
+    }
+
+    .game-specific-container {
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 6px;
     }
 
     .energy-bar {
-        width: 80px;
-        height: 10px;
+        width: 60px;
+        height: 8px;
+        margin-bottom: 0 !important;
     }
 
     .energy-text {
-        font-size: 0.7rem;
+        font-size: 0.65rem;
     }
 
     .skills-container {
         flex-direction: row;
-        gap: 5px;
+        gap: 4px;
+        flex: 1;
     }
 
     .skill-btn {
-        padding: 6px;
+        padding: 5px;
+        flex: 1;
+        justify-content: center;
     }
 
     .skill-name,
     .skill-cost {
         display: none;
-        /* Icon only on mobile */
     }
 
     .skill-icon {
-        font-size: 1rem;
+        font-size: 0.95rem;
+    }
+
+    .timer-display {
+        font-size: 0.9rem !important;
+        padding: 3px 8px !important;
+    }
+
+    /* 大厅选单卡片在移动端变为更紧凑的纵向列表 */
+    .game-cards {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .game-card {
+        width: 100%;
+        max-width: 280px;
+    }
+
+    /* 页脚在移动端更紧凑 */
+    .github-footer {
+        padding: 8px;
+    }
+    .github-footer a {
+        font-size: 0.8rem;
     }
 }
 
