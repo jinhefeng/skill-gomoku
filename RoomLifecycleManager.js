@@ -7,11 +7,29 @@ class RoomLifecycleManager {
         this.queue = [];
     }
 
+    broadcastLobbyState(roomId) {
+        const room = this.rooms[roomId];
+        if (!room || room.state !== 'LOBBY') return;
+        this.io.to(roomId).emit('lobby_selections', {
+            selections: room.selections || {}, 
+            difficulty: room.sudokuDifficulty || 'medium', 
+            smartAssist: room.smartAssist || false,
+            configOwner: room.sudokuConfigOwner || null
+        });
+    }
+
     joinRandom(socket, nickname) {
+        // 防抖：如果在排队中，直接忽略
+        if (this.queue.includes(socket.id)) return;
+
         // 优先寻找大厅阶段只有1人且非私密的房间
         for (const roomId in this.rooms) {
             const room = this.rooms[roomId];
             if (!room.isPrivate && room.state === 'LOBBY' && room.players.length === 1) {
+                // 修复：不能匹配到自己所在的房间
+                if (room.players[0].socket.id === socket.id) {
+                    continue;
+                }
                 this.addPlayerToRoom(roomId, socket, nickname);
                 return;
             }
@@ -19,19 +37,26 @@ class RoomLifecycleManager {
 
         if (this.queue.length > 0) {
             const opponentId = this.queue.shift();
+            // 兜底：如果碰巧排到了自己，继续取下一个
+            if (opponentId === socket.id) {
+                return this.joinRandom(socket, nickname);
+            }
             const opponentSocket = this.io.sockets.sockets.get(opponentId);
             if (!opponentSocket) {
                 return this.joinRandom(socket, nickname);
             }
 
-            const roomId = `room_${Date.now()}`;
+            // 增强：确保随机房号不与私密房号冲突，且明确为非私密
+            const roomId = `match_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
             this.createRoom(roomId, false);
             
             this.addPlayerToRoom(roomId, opponentSocket, opponentSocket.nickname || 'Opponent');
             this.addPlayerToRoom(roomId, socket, nickname);
         } else {
             socket.nickname = nickname;
-            this.queue.push(socket.id);
+            if (!this.queue.includes(socket.id)) {
+                this.queue.push(socket.id);
+            }
             socket.emit('waiting_for_match');
         }
     }
@@ -41,7 +66,14 @@ class RoomLifecycleManager {
     }
 
     createPrivate(socket, nickname) {
-        const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        let roomId;
+        let attempts = 0;
+        // 生成 6 位唯一房号
+        do {
+            roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+            attempts++;
+        } while (this.rooms[roomId] && attempts < 10);
+
         this.createRoom(roomId, true);
         this.addPlayerToRoom(roomId, socket, nickname);
         socket.emit('room_created', roomId);
@@ -101,6 +133,9 @@ class RoomLifecycleManager {
             opponentName: room.lastPlayerNames[pIdx === 1 ? 2 : 1]
         });
 
+        // 补发当前大厅选择状态（给新加入者同步已选项目）
+        this.broadcastLobbyState(roomId);
+
         // 如果是第2个人进入，也要通知第1个人
         if (room.players.length === 2) {
             const opponent = room.players.find(p => p.pIdx !== pIdx);
@@ -142,7 +177,6 @@ class RoomLifecycleManager {
                     room.state = 'LOBBY';
                     room.selections = {};
                     room.sudokuDifficulty = null;
-                    room.sudokuDifficultyOwner = null;
 
                     // 剩余玩家置灰且进入匹配队列（或者等待）
                     this.io.to(roomId).emit('opponent_offline', { 
@@ -154,7 +188,6 @@ class RoomLifecycleManager {
                     // 大厅阶段如果对方离开，通知剩余玩家并重置状态
                     room.selections = {};
                     room.sudokuDifficulty = null;
-                    room.sudokuDifficultyOwner = null;
                     this.io.to(roomId).emit('opponent_offline', { 
                         message: `对方 (${leavingPlayer.nickname}) 已退出大厅`,
                         playerNum: leavingPlayer.pIdx,
@@ -200,26 +233,41 @@ class RoomLifecycleManager {
             const p = room.players.find(p => p.socket.id === socket.id);
             if (!p) return;
             
-            room.selections[p.pIdx] = data.gameId;
-            
-            // 数独难度：首位选中 sudoku 的玩家可设定/更新 difficulty，后选者不可覆盖
-            if (data.gameId === 'sudoku' && data.difficulty) {
-                if (!room.sudokuDifficultyOwner || room.sudokuDifficultyOwner === p.pIdx) {
-                    room.sudokuDifficulty = data.difficulty;
-                    room.sudokuDifficultyOwner = p.pIdx;
+            // 如果玩家操作了数独（不管是点按钮还是选游戏），且目前没主，则该玩家变成 Owner
+            if (data.gameId === 'sudoku' && !room.sudokuConfigOwner) {
+                room.sudokuConfigOwner = p.pIdx;
+            }
+
+            // 更新选中状态（除非是纯配置更新，但在新逻辑下点击配置即选中，所以 data.isConfigOnly 可能不再需要，保留以向后兼容）
+            if (!data.isConfigOnly) {
+                room.selections[p.pIdx] = data.gameId;
+                // 如果切换到别的游戏，且曾经是数独 Owner，则放弃所有权
+                if (data.gameId !== 'sudoku' && room.sudokuConfigOwner === p.pIdx) {
+                    room.sudokuConfigOwner = null;
                 }
             }
-            this.io.to(roomId).emit('lobby_selections', room.selections, room.sudokuDifficulty || null);
+            
+            if (data.gameId === 'sudoku') {
+                // 只有 Owner 才有权修改配置
+                if (room.sudokuConfigOwner === p.pIdx) {
+                    if (data.difficulty) room.sudokuDifficulty = data.difficulty;
+                    if (data.smartAssist !== undefined) room.smartAssist = data.smartAssist;
+                }
+            }
+            
+            this.broadcastLobbyState(roomId);
             
             // Check if both match
             if (room.players.length === 2 && room.selections[1] && room.selections[1] === room.selections[2]) {
                 const chosenGame = room.selections[1];
                 const difficulty = room.sudokuDifficulty || 'medium';
+                const smartAssist = room.smartAssist || false;
                 room.selections = {};
                 room.sudokuDifficulty = null;
-                room.sudokuDifficultyOwner = null;
+                room.sudokuConfigOwner = null;
+                room.smartAssist = false;
                 room.state = 'INGAME';
-                this.mountEngine(roomId, chosenGame, difficulty);
+                this.mountEngine(roomId, chosenGame, difficulty, smartAssist);
             }
         } else if (event === 'request_start_game') {
             socket.to(roomId).emit('game_proposal_received', data);
@@ -242,23 +290,26 @@ class RoomLifecycleManager {
                     room.engine.destroy();
                     room.engine = null;
                 }
+                // 状态机转换：切换到大厅并执行一次性重置
                 room.state = 'LOBBY';
                 room.selections = {};
-                room.sudokuDifficulty = null;
-                room.sudokuDifficultyOwner = null;
+                room.sudokuDifficulty = 'medium';
+                room.sudokuConfigOwner = null;
+                room.smartAssist = false;
+                
                 const playersData = room.players.map(p => ({ id: p.id, nickname: p.nickname, playerNum: p.pIdx }));
                 socket.emit('returned_to_lobby', { message: '您已返回大厅', players: playersData });
+                this.broadcastLobbyState(roomId);
             } else if (room.state === 'LOBBY') {
-                room.selections = {};
-                room.sudokuDifficulty = null;
-                room.sudokuDifficultyOwner = null;
+                // 已经在 LOBBY 态（例如另一名玩家已经先回来并占用了配置权），此时只需同步玩家列表和广播现有状态
                 const playersData = room.players.map(p => ({ id: p.id, nickname: p.nickname, playerNum: p.pIdx }));
                 socket.emit('returned_to_lobby', { players: playersData });
+                this.broadcastLobbyState(roomId);
             }
         }
     }
 
-    mountEngine(roomId, gameId, difficulty) {
+    mountEngine(roomId, gameId, difficulty, smartAssist) {
         const room = this.rooms[roomId];
         if (!room) return;
 
@@ -268,8 +319,7 @@ class RoomLifecycleManager {
             room.engine = new GomokuEngine(roomId, context);
         } else if (gameId === 'sudoku') {
             const EngineClass = require('./games/sudoku/engine');
-            room.engine = new EngineClass(roomId, context);
-            room.engine.difficulty = difficulty || 'medium';
+            room.engine = new EngineClass(roomId, context, { difficulty: difficulty || 'medium', smartAssist: smartAssist || false });
         }
         
         if(room.engine.init) room.engine.init();

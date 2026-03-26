@@ -3,7 +3,7 @@
  * 遵循 BaseEngine 规范 (engine-architecture.md)
  */
 class SudokuEngine {
-    constructor(roomId, context) {
+    constructor(roomId, context, config = {}) {
         this.roomId = roomId;
         this.context = context; // { broadcast, emitTo }
 
@@ -18,7 +18,8 @@ class SudokuEngine {
         this.totalEmpty = 0; // 需要填的总格数
         this.filledCount = 0;
 
-        this.difficulty = 'medium';
+        this.difficulty = config.difficulty || 'medium';
+        this.smartAssist = config.smartAssist || false;
         this.restartRequests = new Set();
     }
 
@@ -37,7 +38,17 @@ class SudokuEngine {
 
     removePlayer(socketId) {
         this.players = this.players.filter(p => p.id !== socketId);
-        this.gameActive = false;
+        if (this.gameActive) {
+            this.gameActive = false;
+            // 对方离开直接结算
+            this.context.broadcast('game_over', {
+                winner: this.players.length > 0 ? this.players[0].player : 0,
+                score: this.score,
+                isDraw: false,
+                reason: 'opponent_left',
+                onlyReturnLobby: true
+            });
+        }
         this.context.broadcast('opponent_left');
     }
 
@@ -46,6 +57,7 @@ class SudokuEngine {
         this.gameActive = true;
         this.score = { 1: 0, 2: 0 };
         this.filledCount = 0;
+        this.startTime = Date.now(); // 记录开始时间
         this.restartRequests.clear();
 
         this.players.forEach(p => {
@@ -57,6 +69,7 @@ class SudokuEngine {
                 opponentNickname: opponent ? opponent.nickname : 'Opponent',
                 board: this.board.map(row => [...row]),
                 difficulty: this.difficulty,
+                smartAssist: this.smartAssist,
                 score: this.score
             });
         });
@@ -120,10 +133,13 @@ class SudokuEngine {
             else if (this.score[2] > this.score[1]) winner = 2;
             else isDraw = true;
 
+            const totalTime = Math.floor((Date.now() - this.startTime) / 1000);
+
             this.context.broadcast('game_over', {
                 winner,
                 score: this.score,
-                isDraw
+                isDraw,
+                totalTime
             });
         }
     }
@@ -162,9 +178,10 @@ class SudokuEngine {
         this.filledCount = 0;
         this.restartRequests.clear();
 
-        this.context.broadcast('game_restart', {
+        this.context.broadcast(this.roomId, 'game_restart', {
             board: this.board.map(row => [...row]),
             difficulty: this.difficulty,
+            smartAssist: this.smartAssist,
             score: this.score
         });
     }

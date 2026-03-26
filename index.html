@@ -3,8 +3,8 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🦁游戏大厅</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Skill Gomoku - 竞技对战平台</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +28,6 @@
             <div class="menu-box">
                 <h2>选择模式</h2>
                 <input type="text" id="nicknameInput" class="nickname-input" placeholder="请输入你的昵称 (必填)">
-                <button class="menu-btn" onclick="platform.showToast('单机模式目前在平台对接期暂不开放', true)">本地双人</button>
                 <button class="menu-btn" onclick="platform.startRandom()">随机匹配</button>
                 <div class="divider"></div>
                 <button class="menu-btn" onclick="platform.createPrivate()">创建房间</button>
@@ -36,14 +35,19 @@
                     <input type="text" id="roomIdInput" placeholder="输入房间号">
                     <button class="menu-btn small" onclick="platform.joinPrivate()">加入房间</button>
                 </div>
-                <div id="waitingMsg" class="waiting-msg hidden">
-                    <span id="waitingText">正在寻找对手...</span>
-                    <div id="roomIdBadge" class="room-id-badge hidden" onclick="platform.copyRoomId()" title="点击复制">
-                        <span class="room-label">房间号:</span>
-                        <span id="roomIdDisplay"></span>
-                        <span class="copy-hint">(点击复制)</span>
-                    </div>
+            </div>
+        </div>
+
+        <!-- Waiting Overlay (New independent state) -->
+        <div id="waitingMsg" class="waiting-box hidden">
+            <div class="waiting-content">
+                <span id="waitingText">正在寻找对手...</span>
+                <div id="roomIdBadge" class="room-id-badge hidden" onclick="platform.copyRoomId()" title="点击复制">
+                    <span class="room-label">房间号:</span>
+                    <span id="roomIdDisplay"></span>
+                    <span class="copy-hint">(点击复制)</span>
                 </div>
+                <button class="menu-btn small" onclick="location.reload()" style="margin-top:20px; background: rgba(255,68,68,0.2)">取消匹配/退出</button>
             </div>
         </div>
 
@@ -54,8 +58,13 @@
             <!-- Player 1 Panel -->
             <div class="player-panel p1-panel" id="p1Panel">
                 <div class="player-info">
-                    <h2 id="p1Name">玩家 1 (你)</h2>
-                    <span id="p1Score" class="player-score">0</span>
+                    <div class="player-header">
+                        <h2 id="p1Name">玩家 1 (你)</h2>
+                        <span id="p1Score" class="player-score">0</span>
+                    </div>
+                    <div class="player-stats-row">
+                        <span id="p1Timer" class="player-timer hidden">00:00</span>
+                    </div>
                 </div>
                 <div class="game-specific-container empty" id="p1GameArea"></div>
             </div>
@@ -74,8 +83,13 @@
             <!-- Player 2 Panel -->
             <div class="player-panel p2-panel" id="p2Panel">
                 <div class="player-info">
-                    <h2 id="p2Name">玩家 2 (对手)</h2>
-                    <span id="p2Score" class="player-score">0</span>
+                    <div class="player-header">
+                        <h2 id="p2Name">玩家 2 (对手)</h2>
+                        <span id="p2Score" class="player-score">0</span>
+                    </div>
+                    <div class="player-stats-row">
+                        <span id="p2Timer" class="player-timer hidden">00:00</span>
+                    </div>
                 </div>
                 <div class="game-specific-container empty" id="p2GameArea"></div>
             </div>
@@ -132,6 +146,7 @@
             </a>
         </footer>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="SoundManager.js"></script>
     <script src="games/gomoku/renderer.js"></script>

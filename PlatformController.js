@@ -9,6 +9,13 @@ class PlatformController {
         this.activeGameRenderer = null;
         this.soundManager = new window.SoundManager();
         
+        // 计时系统
+        this.gameStartTime = null;
+        this.timerInterval = null;
+
+        // 统计图表
+        this.visitChart = null;
+        
         this.initSocketEvents();
         this.initUIEvents();
         
@@ -27,9 +34,10 @@ class PlatformController {
         this.socket.on('room_created', (roomId) => {
             document.getElementById('waitingMsg').classList.remove('hidden');
             document.getElementById('roomIdBadge').classList.remove('hidden');
-            document.getElementById('waitingText').innerText = '房间创建成功，等待对手加入...';
+            document.getElementById('waitingText').innerText = '私密房间已就绪';
             document.getElementById('roomIdDisplay').innerText = roomId;
             this.roomId = roomId;
+            this.showToast('房间创建成功！');
         });
 
         this.socket.on('error_message', (msg) => { this.showToast(msg, true); });
@@ -41,6 +49,7 @@ class PlatformController {
             this.roomId = data.roomId;
             this.myPlayerNum = data.myPlayerNum;
             this.hideMenu();
+            document.getElementById('waitingMsg').classList.add('hidden');
             this.enterLobby(data.players);
             
             // 更新得分面板
@@ -68,57 +77,8 @@ class PlatformController {
             }
         });
 
-        this.socket.on('lobby_selections', (selections, sudokuDifficulty) => {
-            ['gomoku', 'sudoku'].forEach(gameId => {
-                const container = document.getElementById(`sel_${gameId}`);
-                if (container) container.innerHTML = '';
-                const card = document.getElementById(`card_${gameId}`);
-                if (card) {
-                     card.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-                     card.style.boxShadow = 'none';
-                }
-            });
-            for (let pIdx in selections) {
-                const gameId = selections[pIdx];
-                if (!gameId) continue;
-                const container = document.getElementById(`sel_${gameId}`);
-                if (container) {
-                    const badge = document.createElement('div');
-                    const isMe = pIdx == this.myPlayerNum;
-                    badge.innerText = isMe ? '已就绪 (你)' : '已就绪 (对手)';
-                    badge.style.color = pIdx == 1 ? 'var(--p1-color)' : 'var(--p2-color)';
-                    badge.style.fontWeight = 'bold';
-                    badge.style.marginTop = '10px';
-                    container.appendChild(badge);
-                    
-                    const card = document.getElementById(`card_${gameId}`);
-                    if(card) {
-                        card.style.borderColor = pIdx == 1 ? 'var(--p1-color)' : 'var(--p2-color)';
-                        card.style.boxShadow = `0 0 15px ${pIdx == 1 ? 'rgba(0, 242, 255, 0.4)' : 'rgba(255, 0, 85, 0.4)'}`;
-                    }
-                }
-            }
-            
-            // 更新数独难度按钮状态
-            if (sudokuDifficulty) {
-                const diffBtns = document.querySelectorAll('.diff-btn');
-                // 检查是否对手已选了数独（我还没选）
-                const opponentIdx = this.myPlayerNum === 1 ? '2' : '1';
-                const opponentSelectedSudoku = selections[opponentIdx] === 'sudoku';
-                const iSelectedSudoku = selections[this.myPlayerNum] === 'sudoku';
-                
-                diffBtns.forEach(btn => {
-                    btn.classList.remove('active');
-                    if (btn.dataset.diff === sudokuDifficulty) {
-                        btn.classList.add('active');
-                    }
-                    // 对手已选 sudoku 且我还没选 → 锁定难度（我是后选者）
-                    if (opponentSelectedSudoku && !iSelectedSudoku) {
-                        btn.disabled = true;
-                        btn.classList.add('locked');
-                    }
-                });
-            }
+        this.socket.on('lobby_selections', (data) => {
+            this.updateLobbyUI(data);
         });
 
         this.socket.on('opponent_offline', (data) => {
@@ -191,15 +151,24 @@ class PlatformController {
                 this.mountGame(gameId);
             }
             this.activeGameRenderer.onGameStart(data);
+
+            // 启动全局计时器
+            this.startGlobalTimer();
         });
 
         // Event routing into Renderers
         this.socket.on('turn_timeout', (data) => this.activeGameRenderer?.onTurnTimeout?.(data));
         this.socket.on('timer_sync', (data) => this.activeGameRenderer?.onTimerSync?.(data));
-        this.socket.on('game_over', (data) => this.activeGameRenderer?.onGameOver?.(data));
+        this.socket.on('game_over', (data) => {
+            this.stopGlobalTimer();
+            this.activeGameRenderer?.onGameOver?.(data);
+        });
         this.socket.on('opponent_move', (data) => this.activeGameRenderer?.onOpponentMove?.(data));
         this.socket.on('opponent_skill', (data) => this.activeGameRenderer?.onOpponentSkill?.(data));
-        this.socket.on('game_restart', (data) => this.activeGameRenderer?.onGameRestart?.(data));
+        this.socket.on('game_restart', (data) => {
+            this.activeGameRenderer?.onGameRestart?.(data);
+            this.startGlobalTimer();
+        });
         this.socket.on('restart_request_received', (data) => this.activeGameRenderer?.onRestartRequestReceived?.(data));
         this.socket.on('restart_request_ack', (data) => this.activeGameRenderer?.onRestartRequestAck?.(data));
         // Sudoku-specific events
@@ -215,9 +184,7 @@ class PlatformController {
             document.getElementById('onlineCount').innerText = data.onlineCount;
             document.getElementById('totalVisits').innerText = data.totalVisits;
             if (!document.getElementById('statsModal').classList.contains('hidden')) {
-                const modalBody = document.getElementById('modalBody');
-                modalBody.innerHTML = '<h3>在线人数历史分布</h3><ul>' + 
-                    data.visitHistory.slice().reverse().map(d => `<li>${d.time}: ${d.count} 人</li>`).join('') + '</ul>';
+                this.updateVisitChart(data.visitHistory);
             }
         });
     }
@@ -260,14 +227,17 @@ class PlatformController {
     createPrivate() {
         const name = this.getNickname();
         if (!name) return;
+        this.showToast('正在创建私密房间...');
         this.socket.emit('create_private', name);
     }
     
     joinPrivate() {
-        const roomId = document.getElementById('roomIdInput').value.trim().toUpperCase();
+        const input = document.getElementById('roomIdInput');
+        const roomId = input.value.trim().toUpperCase();
         if(!roomId) return this.showToast('请输入房间号', true);
         const name = this.getNickname();
         if (!name) return;
+        this.showToast('正在加入房间...');
         this.socket.emit('join_private', {roomId, nickname: name});
     }
 
@@ -340,15 +310,26 @@ class PlatformController {
 
     // 数独：点击难度按钮即选择游戏，并允许反复点击切换难度
     selectSudokuDifficulty(diff) {
-        // 更新本地按钮高亮
-        document.querySelectorAll('.diff-btn').forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.diff === diff);
-        });
         this._selectedSudokuDifficulty = diff;
-        this._sudokuSelected = true;
-        
-        // 直接触发选择动作
-        this.selectGame('sudoku', diff);
+        this.syncSudokuConfig();
+    }
+
+    // 【新增】切换智能辅助
+    toggleSmartAssist(event) {
+        if (event) event.stopPropagation(); // 阻止冒泡到卡片确认
+        this._smartAssistEnabled = !this._smartAssistEnabled;
+        this.syncSudokuConfig();
+    }
+
+    // 【新增】同步数独配置（难度+辅助）
+    syncSudokuConfig() {
+        const payload = { 
+            roomId: this.roomId, 
+            gameId: 'sudoku', 
+            difficulty: this._selectedSudokuDifficulty || 'medium',
+            smartAssist: this._smartAssistEnabled
+        };
+        this.socket.emit('player_select_game', payload);
     }
 
     // 数独：确认选择游戏
@@ -363,37 +344,85 @@ class PlatformController {
             this.activeGameRenderer.destroy();
             this.activeGameRenderer = null;
         }
+        this.stopGlobalTimer();
+        this.resetTimerUI();
         
-        // 重置数独选择状态
-        this._sudokuSelected = false;
+        // 重置数独状态
         this._selectedSudokuDifficulty = 'medium';
+        this._smartAssistEnabled = false;
         
-        const boardContainer = document.getElementById('boardContainer');
         boardContainer.innerHTML = `
             <div id="lobbySelector" class="lobby-selector">
-                <h2 style="margin-bottom: 20px; color: var(--p1-color);">请选择要游玩的游戏</h2>
+                <h2 style="margin-bottom: 20px; color: var(--p1-color); font-size: 1.2rem;">请选择游戏</h2>
                 <div class="game-cards">
                     <div class="game-card" id="card_gomoku" onclick="platform.selectGame('gomoku')">
-                        <h3>技能五子棋</h3>
-                        <p>经典的五子棋结合炫酷技能，连成五子即可获胜</p>
-                        <div class="selectors" id="sel_gomoku"></div>
+                        <div class="card-content">
+                            <h3>技能五子棋</h3>
+                            <p>经典的五子棋结合炫酷技能</p>
+                            <div id="sel_gomoku" class="selection-badges"></div>
+                        </div>
                     </div>
-                    <div class="game-card" id="card_sudoku" onclick="platform.confirmSudoku()">
-                        <h3>对战数独</h3>
-                        <p>双人实时数独对决，比拼速度与逻辑</p>
-                        <div class="sudoku-difficulty-selector">
-                            <span class="difficulty-label">选择难度：</span>
-                            <div class="difficulty-btns" id="difficultyBtns">
-                                <button class="diff-btn" data-diff="easy" onclick="event.stopPropagation(); platform.selectSudokuDifficulty('easy')">简单</button>
-                                <button class="diff-btn active" data-diff="medium" onclick="event.stopPropagation(); platform.selectSudokuDifficulty('medium')">中等</button>
-                                <button class="diff-btn" data-diff="hard" onclick="event.stopPropagation(); platform.selectSudokuDifficulty('hard')">困难</button>
+                    <div class="game-card" id="card_sudoku" onclick="platform.selectGame('sudoku')">
+                        <div class="card-content">
+                            <h3 style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <span>对战数独</span>
+                                <span id="smartAssistBulb" class="assist-bulb" onclick="platform.toggleSmartAssist(event)" title="智能候选辅助">💡</span>
+                            </h3>
+                            <p>实时对决，比拼逻辑</p>
+                            <div id="sel_sudoku" class="selection-badges"></div>
+                            
+                            <div class="sudoku-config-zone" onclick="event.stopPropagation()">
+                                <div class="difficulty-btns" id="difficultyBtns">
+                                    <button class="diff-btn" data-diff="easy" onclick="platform.selectSudokuDifficulty('easy')">初</button>
+                                    <button class="diff-btn active" data-diff="medium" onclick="platform.selectSudokuDifficulty('medium')">中</button>
+                                    <button class="diff-btn" data-diff="hard" onclick="platform.selectSudokuDifficulty('hard')">高</button>
+                                </div>
                             </div>
                         </div>
-                        <div class="selectors" id="sel_sudoku"></div>
                     </div>
                 </div>
             </div>
         `;
+    }
+
+    updateLobbyUI(data) {
+        const selections = data.selections;
+        const difficulty = data.difficulty;
+        const smartAssist = data.smartAssist;
+        const configOwner = data.configOwner;
+
+        // 1. 处理卡片选中高亮 (外边缘发光，颜色与玩家颜色一致)
+        const cards = document.querySelectorAll('.game-card');
+
+        cards.forEach(c => {
+            const gameId = c.id.replace('card_', '');
+            // 移除所有旧的选中状态类
+            c.classList.remove('p1-selected', 'p2-selected', 'selected');
+            
+            // 分别检查 P1 和 P2 的选择情况
+            if (selections[1] === gameId) c.classList.add('p1-selected');
+            if (selections[2] === gameId) c.classList.add('p2-selected');
+        });
+
+        const isOwner = !configOwner || configOwner === this.myPlayerNum;
+
+        // 2. 更新同步后的数独配置
+        if (difficulty) {
+            this._selectedSudokuDifficulty = difficulty;
+            document.querySelectorAll('.diff-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.diff === difficulty);
+                btn.disabled = !isOwner;
+                btn.classList.toggle('locked', !isOwner);
+            });
+        }
+        if (smartAssist !== undefined) {
+            this._smartAssistEnabled = smartAssist;
+            const bulb = document.getElementById('smartAssistBulb');
+            if (bulb) {
+                bulb.classList.toggle('active', smartAssist);
+                bulb.classList.toggle('locked', !isOwner);
+            }
+        }
     }
 
     // Dynamic Engine Mounting
@@ -433,6 +462,73 @@ class PlatformController {
     showVisitHistory() {
         document.getElementById('statsModal').classList.remove('hidden');
         this.socket.emit('get_stats');
+        
+        // 如果 Chart.js 已加载，稍后会在 stats_update 中更新
+        // 这里可以先显示一个加载状态
+        const ctx = document.getElementById('visitChart');
+        if (ctx && !this.visitChart) {
+            ctx.getContext('2d').font = '14px Outfit';
+            ctx.getContext('2d').fillStyle = '#fff';
+            ctx.getContext('2d').fillText('加载中...', 10, 30);
+        }
+    }
+
+    updateVisitChart(history) {
+        const ctx = document.getElementById('visitChart');
+        if (!ctx || !window.Chart) return;
+
+        const labels = history.map(d => d.time);
+        const counts = history.map(d => d.count);
+
+        if (this.visitChart) {
+            this.visitChart.data.labels = labels;
+            this.visitChart.data.datasets[0].data = counts;
+            this.visitChart.update();
+        } else {
+            this.visitChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '访问人数',
+                        data: counts,
+                        borderColor: '#00f2ff',
+                        backgroundColor: 'rgba(0, 242, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#00f2ff',
+                        pointRadius: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#00f2ff',
+                            borderColor: 'rgba(255, 255, 255, 0.1)',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: 'rgba(255, 255, 255, 0.5)', maxRotation: 45, minRotation: 45 }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: 'rgba(255, 255, 255, 0.5)' }
+                        }
+                    }
+                }
+            });
+        }
     }
     
     copyRoomId() {
@@ -457,6 +553,55 @@ class PlatformController {
         }, 2500);
     }
     
+    // ======================== 计时器逻辑 ========================
+    startGlobalTimer() {
+        this.stopGlobalTimer(); // 防御性清理
+        this.gameStartTime = Date.now();
+        
+        const myTimerId = `p${this.myPlayerNum}Timer`;
+        const myTimer = document.getElementById(myTimerId);
+        
+        // 确保对手计时器隐藏
+        const oppTimerId = `p${this.myPlayerNum === 1 ? 2 : 1}Timer`;
+        const oppTimer = document.getElementById(oppTimerId);
+        if (oppTimer) oppTimer.classList.add('hidden');
+        
+        if (myTimer) {
+            myTimer.classList.remove('hidden');
+            myTimer.innerText = '00:00';
+        }
+
+        this.timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - this.gameStartTime) / 1000);
+            const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const s = (elapsed % 60).toString().padStart(2, '0');
+            const timeStr = `${m}:${s}`;
+            
+            if (myTimer) myTimer.innerText = timeStr;
+        }, 1000);
+    }
+
+    stopGlobalTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+        // 隐藏计时器不在这里做，留到 mountLobby 清理 UI 时处理
+    }
+
+    resetTimerUI() {
+        const t1 = document.getElementById('p1Timer');
+        const t2 = document.getElementById('p2Timer');
+        if (t1) {
+            t1.classList.add('hidden');
+            t1.innerText = '00:00';
+        }
+        if (t2) {
+            t2.classList.add('hidden');
+            t2.innerText = '00:00';
+        }
+    }
+
     // Game Event Delegation
     emitGameEvent(event, data) {
         if(this.roomId) {

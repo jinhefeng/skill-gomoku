@@ -215,19 +215,23 @@ class GomokuRenderer {
         if (data.winner === myPlayer) this.platform.soundManager.playWin();
         else this.platform.soundManager.playLoss();
 
-        // Remove old winOverlay if exists
-        const oldW = document.getElementById('winOverlay');
-        if (oldW) oldW.remove();
-
-        const winOverlay = document.createElement('div');
-        winOverlay.id = 'winOverlay';
-        winOverlay.className = 'win-overlay';
-        winOverlay.innerHTML = `
-            <h2 id="winnerText">${data.winner === myPlayer ? '你赢了!' : '你输了...'}</h2>
-            ${data.onlyReturnLobby ? '' : '<button id="restartBtn" class="restart-btn">再来一局</button>'}
-            <button class="menu-btn small" onclick="platform.requestReturnLobby()" style="margin-top: 15px; border:none; background: rgba(255,255,255,0.1)">返回大厅</button>
+        // 统一使用遮罩+内容的分离模式
+        const overlay = document.createElement('div');
+        overlay.className = 'sudoku-overlay'; 
+        
+        const content = document.createElement('div');
+        content.className = 'sudoku-overlay-content';
+        
+        content.innerHTML = `
+            <div class="overlay-main-content">
+                <h2 id="winnerText">${data.winner === myPlayer ? '你赢了!' : '你输了...'}</h2>
+                <p class="score-summary">比分: ${data.score[1]} - ${data.score[2]}</p>
+                ${data.onlyReturnLobby ? '' : '<button id="restartBtn" class="restart-btn">再来一局</button>'}
+                <button class="menu-btn small" onclick="platform.requestReturnLobby()" style="margin-top: 15px; border:none; background: rgba(255,255,255,0.1)">返回大厅</button>
+            </div>
         `;
-        this.container.appendChild(winOverlay);
+        overlay.appendChild(content);
+        this.container.appendChild(overlay);
 
         document.getElementById('p1Score').innerText = data.score[1];
         document.getElementById('p2Score').innerText = data.score[2];

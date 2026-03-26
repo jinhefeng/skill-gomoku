@@ -110,6 +110,7 @@ class SudokuRenderer {
         this.draftMode = false;
         this.selectedCell = null;
         this.difficulty = data.difficulty || 'medium';
+        this.smartAssist = !!data.smartAssist; // 【新增】
 
         // 初始化盘面
         this.board = data.board.map(row => [...row]);
@@ -150,6 +151,9 @@ class SudokuRenderer {
 
             // 清除该格草稿
             this.drafts[row][col].clear();
+            
+            // 【新增】自动清理相关格子的草稿
+            this.autoClearRelatedDrafts(row, col, value);
 
             if (isMe) {
                 this.playCorrectSound();
@@ -165,6 +169,31 @@ class SudokuRenderer {
 
         this.updateScoreUI(scores);
         this.renderBoard();
+        
+        // 如果当前选中的格子被更新了，或者影响了当前选中的格子，刷新面板
+        this.updateNumberPadStatus();
+    }
+
+    // 【新增】自动清理关联格子的草稿逻辑
+    autoClearRelatedDrafts(row, col, value) {
+        // 同行
+        for (let c = 0; c < 9; c++) {
+            if (c !== col) this.drafts[row][c].delete(value);
+        }
+        // 同列
+        for (let r = 0; r < 9; r++) {
+            if (r !== row) this.drafts[r][col].delete(value);
+        }
+        // 同宫
+        const boxR = Math.floor(row / 3) * 3;
+        const boxC = Math.floor(col / 3) * 3;
+        for (let r = boxR; r < boxR + 3; r++) {
+            for (let c = boxC; c < boxC + 3; c++) {
+                if (r !== row || c !== col) {
+                    this.drafts[r][c].delete(value);
+                }
+            }
+        }
     }
 
     onTimerSync(data) {
@@ -200,6 +229,7 @@ class SudokuRenderer {
 
         const overlay = document.createElement('div');
         overlay.className = 'sudoku-overlay';
+        overlay.id = 'gameOverOverlay';
         let resultText = '';
         if (data.isDraw) {
             resultText = '平局！';
@@ -208,21 +238,40 @@ class SudokuRenderer {
         } else {
             resultText = '😢 你输了...';
         }
+        const isOpponentLeft = data.reason === 'opponent_left' || data.onlyReturnLobby;
+        
         overlay.innerHTML = `
             <div class="sudoku-overlay-content">
-                <h2>${resultText}</h2>
-                <p class="score-summary">你的得分: ${data.score[myPlayer]} | 对手得分: ${data.score[myPlayer === 1 ? 2 : 1]}</p>
-                ${data.onlyReturnLobby ? '' : '<button id="sudokuRestartBtn" class="restart-btn">再来一局</button>'}
-                <button class="menu-btn small" onclick="platform.requestReturnLobby()" style="margin-top: 15px; border:none; background: rgba(255,255,255,0.1)">返回大厅</button>
+                <div class="minimize-btn" onclick="sudoku.toggleMinimize()">⎯</div>
+                <div class="expand-btn" onclick="sudoku.toggleMinimize()">▢</div>
+                <div class="overlay-main-content">
+                    <h2>${resultText}</h2>
+                    <p class="score-summary">你的得分: ${data.score[myPlayer]} | 对手得分: ${data.score[myPlayer === 1 ? 2 : 1]}</p>
+                    ${data.totalTime ? `<p class="time-summary">总耗时: ${Math.floor(data.totalTime / 60)}分${data.totalTime % 60}秒</p>` : ''}
+                    <div class="overlay-btns" style="margin-top: 20px; display: flex; flex-direction: column; gap: 10px; align-items: center;">
+                        ${isOpponentLeft ? '' : '<button id="sudokuRestartBtn" class="restart-btn">再来一局</button>'}
+                        ${isOpponentLeft ? '<button class="menu-btn small" onclick="platform.requestReturnLobby()" style="border:none; background: rgba(255,255,255,0.1)">返回大厅</button>' : ''}
+                    </div>
+                </div>
+                <div class="overlay-minimized-content">
+                     <span>${resultText} (${data.score[myPlayer]} : ${data.score[myPlayer === 1 ? 2 : 1]})</span>
+                </div>
             </div>
         `;
         this.container.appendChild(overlay);
 
-        if (!data.onlyReturnLobby) {
+        if (!isOpponentLeft) {
             const restartBtn = document.getElementById('sudokuRestartBtn');
             if (restartBtn) {
                 restartBtn.onclick = () => this.requestRestart();
             }
+        }
+    }
+
+    toggleMinimize() {
+        const overlay = document.getElementById('gameOverOverlay');
+        if (overlay) {
+            overlay.classList.toggle('minimized');
         }
     }
 
@@ -275,6 +324,7 @@ class SudokuRenderer {
 
         this.selectedCell = { row, col };
         this.renderBoard();
+        this.updateNumberPadStatus();
     }
 
     handleNumberInput(num) {
@@ -338,7 +388,7 @@ class SudokuRenderer {
         const owner = this.owners[row][col];
         const draft = this.drafts[row][col];
 
-        // Reset
+        // 1. 更新类名 (总是执行，开销极小)
         cell.className = 'sudoku-cell';
         if (col % 3 === 0 && col !== 0) cell.classList.add('block-left');
         if (row % 3 === 0 && row !== 0) cell.classList.add('block-top');
@@ -348,7 +398,7 @@ class SudokuRenderer {
             cell.classList.add('selected');
         }
 
-        // 同行同列同宫高亮
+        // 同行同列同宫背景高亮
         if (this.selectedCell) {
             const sr = this.selectedCell.row, sc = this.selectedCell.col;
             if (row === sr || col === sc ||
@@ -356,6 +406,15 @@ class SudokuRenderer {
                 cell.classList.add('highlighted');
             }
         }
+
+        // 2. 脏检查内容：只有内容或所属关系变化时才重绘内容
+        const draftStr = Array.from(draft).sort().join(',');
+        const stateKey = `v:${value}|o:${owner}|d:${draftStr}`;
+        
+        if (cell.dataset.lastState === stateKey) {
+            return; // 状态未变，无需重建 innerHTML，避免闪烁
+        }
+        cell.dataset.lastState = stateKey;
 
         cell.innerHTML = '';
 
@@ -396,6 +455,54 @@ class SudokuRenderer {
         if (this.boardElement) {
             this.boardElement.classList.toggle('draft-mode', this.draftMode);
         }
+    }
+
+    // 【新增】更新数字面板的高亮/置灰状态
+    updateNumberPadStatus() {
+        if (!this.numpadButtons || this.numpadButtons.length === 0) return;
+        
+        const cell = this.selectedCell;
+        this.numpadButtons.forEach((btn, index) => {
+            const num = index + 1;
+            // 如果开启了智能辅助，才执行置灰逻辑
+            if (this.smartAssist) {
+                if (cell && this.isValidPlacement(cell.row, cell.col, num)) {
+                    btn.classList.remove('disabled');
+                    btn.disabled = false;
+                } else {
+                    btn.classList.add('disabled');
+                    btn.disabled = true;
+                }
+            } else {
+                // 未开启辅助，全部可用
+                btn.classList.remove('disabled');
+                btn.disabled = false;
+            }
+        });
+    }
+
+    // 【新增】本地合法性检查逻辑
+    isValidPlacement(row, col, num) {
+        // 如果该格已有数字
+        if (this.board[row][col] !== 0) return false;
+
+        // 检查行
+        for (let c = 0; c < 9; c++) {
+            if (this.board[row][c] === num) return false;
+        }
+        // 检查列
+        for (let r = 0; r < 9; r++) {
+            if (this.board[r][col] === num) return false;
+        }
+        // 检查宫
+        const startRow = Math.floor(row / 3) * 3;
+        const startCol = Math.floor(col / 3) * 3;
+        for (let r = startRow; r < startRow + 3; r++) {
+            for (let c = startCol; c < startCol + 3; c++) {
+                if (this.board[r][c] === num) return false;
+            }
+        }
+        return true;
     }
 
     updateScoreUI(scores) {
