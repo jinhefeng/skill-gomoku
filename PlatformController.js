@@ -27,12 +27,13 @@ class PlatformController {
 
     initSocketEvents() {
         this.socket.on('waiting_for_match', () => {
-            document.getElementById('waitingMsg').classList.remove('hidden');
+            this.setMenuView('waiting');
             document.getElementById('waitingText').innerText = '正在寻找对手...';
+            document.getElementById('roomIdBadge').classList.add('hidden');
         });
 
         this.socket.on('room_created', (roomId) => {
-            document.getElementById('waitingMsg').classList.remove('hidden');
+            this.setMenuView('waiting');
             document.getElementById('roomIdBadge').classList.remove('hidden');
             document.getElementById('waitingText').innerText = '私密房间已就绪';
             document.getElementById('roomIdDisplay').innerText = roomId;
@@ -48,8 +49,12 @@ class PlatformController {
         this.socket.on('room_joined_lobby', (data) => {
             this.roomId = data.roomId;
             this.myPlayerNum = data.myPlayerNum;
-            this.hideMenu();
-            document.getElementById('waitingMsg').classList.add('hidden');
+            
+            // 只有当房间已有对手时才隐藏初始菜单，否则保持在等待视图中展示房号
+            if (data.players.length > 1) {
+                this.hideMenu();
+            }
+            
             this.enterLobby(data.players);
             
             // 更新得分面板
@@ -220,25 +225,44 @@ class PlatformController {
     startRandom() {
         const name = this.getNickname();
         if (!name) return;
-        document.querySelector('button[onclick="platform.startRandom()"]').disabled = true;
+        const btn = document.getElementById('startRandomBtn');
+        if (btn) btn.disabled = true;
         this.socket.emit('join_random', name);
     }
     
     createPrivate() {
         const name = this.getNickname();
         if (!name) return;
-        this.showToast('正在创建私密房间...');
+        this.showToast('正在准备私密房间...');
         this.socket.emit('create_private', name);
     }
     
     joinPrivate() {
         const input = document.getElementById('roomIdInput');
         const roomId = input.value.trim().toUpperCase();
-        if(!roomId) return this.showToast('请输入房间号', true);
+        if(!roomId) return this.showToast('请输入 6 位房间号', true);
         const name = this.getNickname();
         if (!name) return;
         this.showToast('正在加入房间...');
         this.socket.emit('join_private', {roomId, nickname: name});
+    }
+
+    cancelMatching() {
+        this.socket.emit('leave_queue');
+        this.setMenuView('initial');
+        const btn = document.getElementById('startRandomBtn');
+        if (btn) btn.disabled = false;
+        this.showToast('匹配已取消');
+    }
+
+    setMenuView(view) {
+        if (view === 'waiting') {
+            document.getElementById('menuInitialView').classList.add('hidden');
+            document.getElementById('menuWaitingView').classList.remove('hidden');
+        } else {
+            document.getElementById('menuInitialView').classList.remove('hidden');
+            document.getElementById('menuWaitingView').classList.add('hidden');
+        }
     }
 
     hideMenu() {

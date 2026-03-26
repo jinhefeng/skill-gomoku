@@ -23,31 +23,48 @@
             </div>
         </header>
 
-        <!-- Menu Overlay -->
+        <!-- Menu Overlay (Main State Machine) -->
         <div id="menuOverlay" class="menu-overlay">
-            <div class="menu-box">
-                <h2>选择模式</h2>
-                <input type="text" id="nicknameInput" class="nickname-input" placeholder="请输入你的昵称 (必填)">
-                <button class="menu-btn" onclick="platform.startRandom()">随机匹配</button>
-                <div class="divider"></div>
-                <button class="menu-btn" onclick="platform.createPrivate()">创建房间</button>
-                <div class="join-box">
-                    <input type="text" id="roomIdInput" placeholder="输入房间号">
-                    <button class="menu-btn small" onclick="platform.joinPrivate()">加入房间</button>
+            <div class="menu-box" id="menuBox">
+                <!-- View 1: Initial Selection -->
+                <div id="menuInitialView" class="menu-view">
+                    <h2 class="menu-title">选择模式</h2>
+                    <div class="input-group">
+                        <input type="text" id="nicknameInput" class="nickname-input" placeholder="请输入你的昵称 (必选)">
+                    </div>
+                    
+                    <div class="action-group">
+                        <button id="startRandomBtn" class="menu-btn primary" onclick="platform.startRandom()">
+                            <span class="btn-text">随机匹配</span>
+                        </button>
+                        
+                        <div class="divider"><span>或者</span></div>
+                        
+                        <div class="private-group">
+                            <button id="createPrivateBtn" class="menu-btn secondary" onclick="platform.createPrivate()">创建房间</button>
+                            <div class="join-input-wrapper">
+                                <input type="text" id="roomIdInput" placeholder="输入房号">
+                                <button class="join-btn" onclick="platform.joinPrivate()">
+                                    <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M14,3L12,5L15,8H3V10H15L12,13L14,15L21,8L14,3Z"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Waiting Overlay (New independent state) -->
-        <div id="waitingMsg" class="waiting-box hidden">
-            <div class="waiting-content">
-                <span id="waitingText">正在寻找对手...</span>
-                <div id="roomIdBadge" class="room-id-badge hidden" onclick="platform.copyRoomId()" title="点击复制">
-                    <span class="room-label">房间号:</span>
-                    <span id="roomIdDisplay"></span>
-                    <span class="copy-hint">(点击复制)</span>
+                <!-- View 2: Waiting/Matching State -->
+                <div id="menuWaitingView" class="menu-view hidden">
+                    <div class="waiting-content">
+                        <div class="loading-spinner"></div>
+                        <span id="waitingText">正在寻找对手...</span>
+                        <div id="roomIdBadge" class="room-id-badge hidden" onclick="platform.copyRoomId()" title="点击复制房号">
+                            <span class="room-label">房间号</span>
+                            <span id="roomIdDisplay">------</span>
+                            <span class="copy-tip">点击复制</span>
+                        </div>
+                        <button class="cancel-link" onclick="platform.cancelMatching()">取消并返回</button>
+                    </div>
                 </div>
-                <button class="menu-btn small" onclick="location.reload()" style="margin-top:20px; background: rgba(255,68,68,0.2)">取消匹配/退出</button>
             </div>
         </div>
 
