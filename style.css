@@ -498,9 +498,17 @@ h1 {
     position: relative;
 }
 
-/* 排序：本地玩家置顶 */
+/* 默认排序：桌面端 (非缩放模式) 锁定轨道 P6 */
 .player-panel.is-me {
-    order: -1;
+    order: 1; /* 我在左 */
+}
+
+.board-column {
+    order: 2; /* 棋盘在中 */
+}
+
+.player-panel:not(.is-me) {
+    order: 3; /* 对手在右 */
 }
 
 .player-panel.active {
@@ -709,7 +717,7 @@ h1 {
 }
 
 .board-container {
-    order: 1; /* 默认在上 */
+    /* 移除 order: 1，由父级 .board-column 统一控制 */
 }
 
 /* Chat Bar */
@@ -2175,12 +2183,21 @@ input:checked + .slider:before {
     }
 
     .board-column {
-        order: 2;
+        order: 2; /* 移动端：棋盘在中间 */
         width: 100%;
         display: flex;
         flex-direction: column;
         justify-content: flex-start;
         gap: 2px; /* 极致间距压缩 P3 */
+    }
+
+    /* 移动端覆盖：我（上）、棋盘（中）、对手（下） */
+    .player-panel.is-me {
+        order: 1;
+    }
+    
+    .player-panel:not(.is-me) {
+        order: 3;
     }
 
     .board-container {

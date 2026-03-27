@@ -14,6 +14,10 @@ class PlatformController {
         
         this.initSocketEvents();
         this.initUIEvents();
+
+        // 显式初始化数独配置状态，防止与后端同步前出现 undefined 导致的联动 Bug
+        this._selectedSudokuDifficulty = 'medium';
+        this._smartAssistEnabled = false;
         
         const savedName = localStorage.getItem('nickname');
         if (savedName && document.getElementById('nicknameInput')) {
@@ -351,18 +355,20 @@ class PlatformController {
 
     // 【新增】切换智能辅助
     toggleSmartAssist(event) {
-        if (event) event.stopPropagation(); // 阻止冒泡到卡片确认
+        if (event) event.stopPropagation(); 
+        // 增加权限初步判定，只有在是 Owner 的潜在状态下才允许本地翻转
         this._smartAssistEnabled = !this._smartAssistEnabled;
         this.syncSudokuConfig();
     }
 
     // 【新增】同步数独配置（难度+辅助）
     syncSudokuConfig() {
+        // 关键修复：确保 smartAssist 永远是布尔值 false/true，而不是 undefined，防止发给服务器的数据导致逻辑跳变
         const payload = { 
             roomId: this.roomId, 
             gameId: 'sudoku', 
             difficulty: this._selectedSudokuDifficulty || 'medium',
-            smartAssist: this._smartAssistEnabled
+            smartAssist: !!this._smartAssistEnabled
         };
         this.socket.emit('player_select_game', payload);
     }
@@ -379,10 +385,12 @@ class PlatformController {
             this.activeGameRenderer.destroy();
             this.activeGameRenderer = null;
         }
+
+        // 大厅挂载时，强制初始化配置变量为默认值或现有值
+        this._selectedSudokuDifficulty = this._selectedSudokuDifficulty || 'medium';
+        this._smartAssistEnabled = !!this._smartAssistEnabled;
         
-        // 重置数独状态
-        this._selectedSudokuDifficulty = 'medium';
-        this._smartAssistEnabled = false;
+        // 移除盲目重置，状态应由服务器下发的 gameConfigs 驱动
         
         boardContainer.innerHTML = `
             <div id="lobbySelector" class="lobby-selector">
@@ -405,9 +413,9 @@ class PlatformController {
                             <div id="sel_sudoku" class="selection-badges"></div>
                             
                             <div class="sudoku-config-zone" onclick="event.stopPropagation()">
-                                <div class="difficulty-btns" id="difficultyBtns">
+                                <div class="difficulty-btns" id="difficultyBtns" onclick="event.stopPropagation()">
                                     <button class="diff-btn" data-diff="easy" onclick="platform.selectSudokuDifficulty('easy')">初</button>
-                                    <button class="diff-btn active" data-diff="medium" onclick="platform.selectSudokuDifficulty('medium')">中</button>
+                                    <button class="diff-btn" data-diff="medium" onclick="platform.selectSudokuDifficulty('medium')">中</button>
                                     <button class="diff-btn" data-diff="hard" onclick="platform.selectSudokuDifficulty('hard')">高</button>
                                 </div>
                             </div>
@@ -420,41 +428,36 @@ class PlatformController {
 
     updateLobbyUI(data) {
         const selections = data.selections;
-        const difficulty = data.difficulty;
-        const smartAssist = data.smartAssist;
-        const configOwner = data.configOwner;
+        const gameConfigs = data.gameConfigs || {};
 
-        // 1. 处理卡片选中高亮 (外边缘发光，颜色与玩家颜色一致)
+        // 1. 处理卡片选中高亮
         const cards = document.querySelectorAll('.game-card');
-
         cards.forEach(c => {
             const gameId = c.id.replace('card_', '');
-            // 移除所有旧的选中状态类
-            c.classList.remove('p1-selected', 'p2-selected', 'selected');
+            c.classList.remove('p1-selected', 'p2-selected');
             
-            // 分别检查 P1 和 P2 的选择情况
             if (selections[1] === gameId) c.classList.add('p1-selected');
             if (selections[2] === gameId) c.classList.add('p2-selected');
         });
 
-        const isOwner = !configOwner || configOwner === this.myPlayerNum;
+        // 2. 更新数独配置与权限控制
+        const sudokuConfig = gameConfigs.sudoku || { difficulty: 'medium', smartAssist: false, owner: null };
+        const isOwner = sudokuConfig.owner === this.myPlayerNum;
 
-        // 2. 更新同步后的数独配置
-        if (difficulty) {
-            this._selectedSudokuDifficulty = difficulty;
-            document.querySelectorAll('.diff-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.diff === difficulty);
-                btn.disabled = !isOwner;
-                btn.classList.toggle('locked', !isOwner);
-            });
-        }
-        if (smartAssist !== undefined) {
-            this._smartAssistEnabled = smartAssist;
-            const bulb = document.getElementById('smartAssistBulb');
-            if (bulb) {
-                bulb.classList.toggle('active', smartAssist);
-                bulb.classList.toggle('locked', !isOwner);
-            }
+        // 只有当前玩家是数独的选择者（Owner）时，才允许修改按钮
+        this._selectedSudokuDifficulty = sudokuConfig.difficulty;
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            const active = btn.dataset.diff === sudokuConfig.difficulty;
+            btn.classList.toggle('active', active);
+            btn.disabled = !isOwner;
+            btn.classList.toggle('locked', !isOwner);
+        });
+
+        this._smartAssistEnabled = sudokuConfig.smartAssist;
+        const bulb = document.getElementById('smartAssistBulb');
+        if (bulb) {
+            bulb.classList.toggle('active', sudokuConfig.smartAssist);
+            bulb.classList.toggle('locked', !isOwner);
         }
     }
 

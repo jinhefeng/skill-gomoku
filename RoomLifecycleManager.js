@@ -12,9 +12,7 @@ class RoomLifecycleManager {
         if (!room || room.state !== 'LOBBY') return;
         this.io.to(roomId).emit('lobby_selections', {
             selections: room.selections || {}, 
-            difficulty: room.sudokuDifficulty || 'medium', 
-            smartAssist: room.smartAssist || false,
-            configOwner: room.sudokuConfigOwner || null
+            gameConfigs: room.gameConfigs || {}
         });
     }
 
@@ -95,6 +93,11 @@ class RoomLifecycleManager {
             state: 'LOBBY',
             players: [],
             selections: {},
+            gameConfigs: {
+                // 移除盲目重置，状态应由服务器下发的 gameConfigs 驱动
+                sudoku: { owner: null },
+                gomoku: { owner: null }
+            },
             engine: null,
             persistedScores: { 1: 0, 2: 0 },
             lastPlayerNames: { 1: null, 2: null }
@@ -187,7 +190,8 @@ class RoomLifecycleManager {
                 } else if (room.state === 'LOBBY') {
                     // 大厅阶段如果对方离开，通知剩余玩家并重置状态
                     room.selections = {};
-                    room.sudokuDifficulty = null;
+                    room.gameConfigs.sudoku.owner = null;
+                    room.gameConfigs.gomoku.owner = null;
                     this.io.to(roomId).emit('opponent_offline', { 
                         message: `对方 (${leavingPlayer.nickname}) 已退出大厅`,
                         playerNum: leavingPlayer.pIdx,
@@ -233,39 +237,53 @@ class RoomLifecycleManager {
             const p = room.players.find(p => p.socket.id === socket.id);
             if (!p) return;
             
-            // 如果玩家操作了数独（不管是点按钮还是选游戏），且目前没主，则该玩家变成 Owner
-            if (data.gameId === 'sudoku' && !room.sudokuConfigOwner) {
-                room.sudokuConfigOwner = p.pIdx;
+            const gameId = data.gameId;
+            const config = room.gameConfigs[gameId];
+
+            // 1. 获取配置所有权 (First-to-Select)
+            if (config && config.owner === null) {
+                config.owner = p.pIdx;
             }
 
-            // 更新选中状态（除非是纯配置更新，但在新逻辑下点击配置即选中，所以 data.isConfigOnly 可能不再需要，保留以向后兼容）
-            if (!data.isConfigOnly) {
-                room.selections[p.pIdx] = data.gameId;
-                // 如果切换到别的游戏，且曾经是数独 Owner，则放弃所有权
-                if (data.gameId !== 'sudoku' && room.sudokuConfigOwner === p.pIdx) {
-                    room.sudokuConfigOwner = null;
-                }
+            // 只有当玩家明确切换到另一个不同游戏时，才释放原有游戏的所有权
+            if (room.selections[p.pIdx] !== gameId) {
+                Object.keys(room.gameConfigs).forEach(gId => {
+                    if (gId !== gameId && room.gameConfigs[gId].owner === p.pIdx) {
+                        room.gameConfigs[gId].owner = null;
+                    }
+                });
+                room.selections[p.pIdx] = gameId;
             }
-            
-            if (data.gameId === 'sudoku') {
-                // 只有 Owner 才有权修改配置
-                if (room.sudokuConfigOwner === p.pIdx) {
-                    if (data.difficulty) room.sudokuDifficulty = data.difficulty;
-                    if (data.smartAssist !== undefined) room.smartAssist = data.smartAssist;
-                }
+
+            // 3. 应用配置修改 (仅限 Owner)
+            if (config && config.owner === p.pIdx && gameId === 'sudoku') {
+                if (data.difficulty) config.difficulty = data.difficulty;
+                if (data.smartAssist !== undefined) config.smartAssist = data.smartAssist;
+                this.broadcastLobbyState(roomId);
+            } else if (config && config.owner !== p.pIdx && (data.difficulty || data.smartAssist !== undefined)) {
+                // 如果非 Owner 尝试修改，强行给该客户端补发一次正确状态同步
+                socket.emit('lobby_selections', {
+                    selections: room.selections || {}, 
+                    gameConfigs: room.gameConfigs || {}
+                });
+            } else {
+                // 仅选择游戏的情况
+                this.broadcastLobbyState(roomId);
             }
-            
-            this.broadcastLobbyState(roomId);
             
             // Check if both match
             if (room.players.length === 2 && room.selections[1] && room.selections[1] === room.selections[2]) {
                 const chosenGame = room.selections[1];
-                const difficulty = room.sudokuDifficulty || 'medium';
-                const smartAssist = room.smartAssist || false;
+                const gameConfig = room.gameConfigs[chosenGame] || {};
+                
+                const difficulty = gameConfig.difficulty || 'medium';
+                const smartAssist = gameConfig.smartAssist || false;
+                
+                // 重置大厅核心状态（配置保留其所有者以外的值，下次仍可用）
                 room.selections = {};
-                room.sudokuDifficulty = null;
-                room.sudokuConfigOwner = null;
-                room.smartAssist = false;
+                room.gameConfigs.sudoku.owner = null;
+                room.gameConfigs.gomoku.owner = null;
+                
                 room.state = 'INGAME';
                 this.mountEngine(roomId, chosenGame, difficulty, smartAssist);
             }
@@ -293,9 +311,8 @@ class RoomLifecycleManager {
                 // 状态机转换：切换到大厅并执行一次性重置
                 room.state = 'LOBBY';
                 room.selections = {};
-                room.sudokuDifficulty = 'medium';
-                room.sudokuConfigOwner = null;
-                room.smartAssist = false;
+                room.gameConfigs.sudoku.owner = null;
+                room.gameConfigs.gomoku.owner = null;
                 
                 const playersData = room.players.map(p => ({ id: p.id, nickname: p.nickname, playerNum: p.pIdx }));
                 socket.emit('returned_to_lobby', { message: '您已返回大厅', players: playersData });
