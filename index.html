@@ -12,11 +12,11 @@
 </head>
 
 <body>
-    <div class="app-container">
+    <div class="app-container in-lobby">
         <header class="game-header" style="position: relative; width: 100%; display: flex; justify-content: center; align-items: center; min-height: 60px;">
             <div style="position: relative; display: inline-flex; align-items: center; justify-content: center;">
                 <h1 id="mainTitle" style="margin: 0; display: inline-block;">🦁 游戏大厅</h1>
-                <button id="returnLobbyBtn" class="menu-btn small hidden" onclick="platform.requestReturnLobby()" style="position: absolute; left: calc(100% + 20px); white-space: nowrap; padding: 5px 15px; top: 50%; transform: translateY(-50%);">返回大厅</button>
+                <button id="returnLobbyBtn" class="menu-btn small hidden" onclick="platform.requestReturnLobby()">返回大厅</button>
             </div>
             <div class="header-actions" style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%);">
                 <div class="turn-indicator hidden" id="turnIndicator">等待开始...</div>
@@ -77,19 +77,18 @@
                 <div class="player-info">
                     <div class="player-header">
                         <h2 id="p1Name">玩家 1 (你)</h2>
-                        <span id="p1Score" class="player-score">0</span>
-                    </div>
                     <div class="player-stats-row">
                         <span id="p1Timer" class="player-timer hidden">00:00</span>
+                    </div>
+                        <span id="p1Score" class="player-score">0</span>
                     </div>
                 </div>
                 <div class="game-specific-container empty" id="p1GameArea"></div>
             </div>
 
-            <div style="display:flex; flex-direction:column; align-items:center; flex:1;">
+            <div class="board-column" style="display:flex; flex-direction:column; align-items:center; flex:1;">
                 <div class="board-container" id="boardContainer">
                 </div>
-                
                 <!-- Chat Input -->
                 <div class="chat-bar hidden" id="chatBar">
                     <input type="text" id="chatInput" placeholder="发送弹幕 (支持 Emoji)..." maxlength="50">
@@ -102,10 +101,10 @@
                 <div class="player-info">
                     <div class="player-header">
                         <h2 id="p2Name">玩家 2 (对手)</h2>
-                        <span id="p2Score" class="player-score">0</span>
-                    </div>
                     <div class="player-stats-row">
                         <span id="p2Timer" class="player-timer hidden">00:00</span>
+                    </div>
+                        <span id="p2Score" class="player-score">0</span>
                     </div>
                 </div>
                 <div class="game-specific-container empty" id="p2GameArea"></div>

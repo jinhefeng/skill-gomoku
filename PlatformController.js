@@ -9,10 +9,6 @@ class PlatformController {
         this.activeGameRenderer = null;
         this.soundManager = new window.SoundManager();
         
-        // 计时系统
-        this.gameStartTime = null;
-        this.timerInterval = null;
-
         // 统计图表
         this.visitChart = null;
         
@@ -142,11 +138,17 @@ class PlatformController {
             this.opponentNickname = data.opponentNickname;
             
             this.hideMenu();
-            document.getElementById('githubFooter').classList.add('hidden');
-            document.getElementById('statsWidget').classList.add('hidden');
+            if (document.getElementById('githubFooter')) document.getElementById('githubFooter').classList.add('hidden');
+            if (document.getElementById('statsWidget')) document.getElementById('statsWidget').classList.add('hidden');
             document.getElementById('returnLobbyBtn').classList.remove('hidden');
             
             this.soundManager.playGameStart();
+            
+            // 标记本地玩家卡片
+            const myPanel = document.getElementById(`p${this.myPlayerNum}Panel`);
+            const oppPanel = document.getElementById(`p${this.myPlayerNum === 1 ? 2 : 1}Panel`);
+            if (myPanel) myPanel.classList.add('is-me');
+            if (oppPanel) oppPanel.classList.remove('is-me');
             
             document.getElementById('p1Name').innerText = this.myPlayerNum === 1 ? `${this.myNickname} (你)` : this.opponentNickname;
             document.getElementById('p2Name').innerText = this.myPlayerNum === 2 ? `${this.myNickname} (你)` : this.opponentNickname;
@@ -156,23 +158,18 @@ class PlatformController {
                 this.mountGame(gameId);
             }
             this.activeGameRenderer.onGameStart(data);
-
-            // 启动全局计时器
-            this.startGlobalTimer();
         });
 
         // Event routing into Renderers
         this.socket.on('turn_timeout', (data) => this.activeGameRenderer?.onTurnTimeout?.(data));
         this.socket.on('timer_sync', (data) => this.activeGameRenderer?.onTimerSync?.(data));
         this.socket.on('game_over', (data) => {
-            this.stopGlobalTimer();
             this.activeGameRenderer?.onGameOver?.(data);
         });
         this.socket.on('opponent_move', (data) => this.activeGameRenderer?.onOpponentMove?.(data));
         this.socket.on('opponent_skill', (data) => this.activeGameRenderer?.onOpponentSkill?.(data));
         this.socket.on('game_restart', (data) => {
             this.activeGameRenderer?.onGameRestart?.(data);
-            this.startGlobalTimer();
         });
         this.socket.on('restart_request_received', (data) => this.activeGameRenderer?.onRestartRequestReceived?.(data));
         this.socket.on('restart_request_ack', (data) => this.activeGameRenderer?.onRestartRequestAck?.(data));
@@ -269,9 +266,16 @@ class PlatformController {
         document.getElementById('menuOverlay').classList.add('hidden');
         document.getElementById('gameArena').classList.remove('blur-bg');
         document.getElementById('chatBar').classList.remove('hidden');
+        // 游戏开始，移除大厅状态类，标题上移
+        const container = document.querySelector('.app-container');
+        if (container) container.classList.remove('in-lobby');
     }
 
     enterLobby(players) {
+        // 进入大厅，增加状态类，标题下移
+        const container = document.querySelector('.app-container');
+        if (container) container.classList.add('in-lobby');
+        
         document.getElementById('mainTitle').innerText = '🦁 游戏大厅';
         document.getElementById('returnLobbyBtn').classList.add('hidden');
         document.getElementById('turnIndicator').classList.add('hidden');
@@ -279,6 +283,13 @@ class PlatformController {
         document.getElementById('statsWidget').classList.remove('hidden');
         
         this.mountLobby();
+        this.resetTimerUI();
+        
+        // 标记本地玩家卡片
+        const myPanel = document.getElementById(`p${this.myPlayerNum}Panel`);
+        const oppPanel = document.getElementById(`p${this.myPlayerNum === 1 ? 2 : 1}Panel`);
+        if (myPanel) myPanel.classList.add('is-me');
+        if (oppPanel) oppPanel.classList.remove('is-me');
         
         const me = players.find(p => p.playerNum === this.myPlayerNum);
         const opp = players.find(p => p.playerNum !== this.myPlayerNum);
@@ -368,8 +379,6 @@ class PlatformController {
             this.activeGameRenderer.destroy();
             this.activeGameRenderer = null;
         }
-        this.stopGlobalTimer();
-        this.resetTimerUI();
         
         // 重置数独状态
         this._selectedSudokuDifficulty = 'medium';
@@ -577,42 +586,6 @@ class PlatformController {
         }, 2500);
     }
     
-    // ======================== 计时器逻辑 ========================
-    startGlobalTimer() {
-        this.stopGlobalTimer(); // 防御性清理
-        this.gameStartTime = Date.now();
-        
-        const myTimerId = `p${this.myPlayerNum}Timer`;
-        const myTimer = document.getElementById(myTimerId);
-        
-        // 确保对手计时器隐藏
-        const oppTimerId = `p${this.myPlayerNum === 1 ? 2 : 1}Timer`;
-        const oppTimer = document.getElementById(oppTimerId);
-        if (oppTimer) oppTimer.classList.add('hidden');
-        
-        if (myTimer) {
-            myTimer.classList.remove('hidden');
-            myTimer.innerText = '00:00';
-        }
-
-        this.timerInterval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - this.gameStartTime) / 1000);
-            const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
-            const s = (elapsed % 60).toString().padStart(2, '0');
-            const timeStr = `${m}:${s}`;
-            
-            if (myTimer) myTimer.innerText = timeStr;
-        }, 1000);
-    }
-
-    stopGlobalTimer() {
-        if (this.timerInterval) {
-            clearInterval(this.timerInterval);
-            this.timerInterval = null;
-        }
-        // 隐藏计时器不在这里做，留到 mountLobby 清理 UI 时处理
-    }
-
     resetTimerUI() {
         const t1 = document.getElementById('p1Timer');
         const t2 = document.getElementById('p2Timer');

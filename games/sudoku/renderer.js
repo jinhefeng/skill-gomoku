@@ -17,6 +17,10 @@ class SudokuRenderer {
         this.draftMode = false;
         this.difficulty = 'medium';
 
+        // 计时系统
+        this.gameStartTime = null;
+        this.timerInterval = null;
+
         // DOM References
         this.container = null;
         this.boardElement = null;
@@ -110,7 +114,7 @@ class SudokuRenderer {
         this.draftMode = false;
         this.selectedCell = null;
         this.difficulty = data.difficulty || 'medium';
-        this.smartAssist = !!data.smartAssist; // 【新增】
+        this.smartAssist = !!data.smartAssist;
 
         // 初始化盘面
         this.board = data.board.map(row => [...row]);
@@ -138,6 +142,39 @@ class SudokuRenderer {
 
         this.updateDraftModeUI();
         this.renderBoard();
+        this.startTimer();
+    }
+
+    startTimer() {
+        if (this.timerInterval) clearInterval(this.timerInterval);
+        this.gameStartTime = Date.now();
+        
+        const myPlayerNum = this.platform.myPlayerNum;
+        const myTimer = document.getElementById(`p${myPlayerNum}Timer`);
+        const oppTimer = document.getElementById(`p${myPlayerNum === 1 ? 2 : 1}Timer`);
+        
+        if (myTimer) { 
+            myTimer.classList.remove('hidden'); 
+            myTimer.innerText = '00:00'; 
+        }
+        if (oppTimer) { 
+            oppTimer.classList.add('hidden'); 
+        }
+
+        this.timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - this.gameStartTime) / 1000);
+            const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const s = (elapsed % 60).toString().padStart(2, '0');
+            const timeStr = `${m}:${s}`;
+            if (myTimer) myTimer.innerText = timeStr;
+        }, 1000);
+    }
+
+    stopTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
     }
 
     onSudokuMoveResult(data) {
@@ -210,6 +247,7 @@ class SudokuRenderer {
 
     onGameOver(data) {
         this.gameActive = false;
+        this.stopTimer();
         const myPlayer = this.platform.myPlayerNum;
 
         if (data.isDraw) {
@@ -563,6 +601,7 @@ class SudokuRenderer {
     // ==================== 销毁 ====================
 
     destroy() {
+        this.stopTimer();
         // 清除所有错误闪烁定时器
         for (const key in this.errorTimers) {
             clearTimeout(this.errorTimers[key]);

@@ -47,39 +47,37 @@ class GomokuRenderer {
             </div>
         `;
         const skillsHTML = `
-            <button class="skill-btn" data-skill="double" data-cost="4" onclick="window.gomoku.activateSkill('double')">
+            <button class="skill-btn" data-skill="double" data-cost="4">
                 <span class="skill-icon">🌪️</span>
                 <span class="skill-name">飞沙走石</span>
                 <span class="skill-cost">4 能量</span>
             </button>
-            <button class="skill-btn" data-skill="rebel" data-cost="3" onclick="window.gomoku.activateSkill('rebel')">
+            <button class="skill-btn" data-skill="rebel" data-cost="3">
                 <span class="skill-icon">🏔️</span>
                 <span class="skill-name">力拔山兮</span>
                 <span class="skill-cost">3 能量</span>
             </button>
-            <button class="skill-btn" data-skill="destroy" data-cost="2" onclick="window.gomoku.activateSkill('destroy')">
+            <button class="skill-btn" data-skill="destroy" data-cost="2">
                 <span class="skill-icon">⏳</span>
                 <span class="skill-name">时光倒流</span>
                 <span class="skill-cost">2 能量</span>
             </button>
         `;
 
-        document.getElementById('p1GameArea').innerHTML = `
-            <div class="timer-display hidden" id="p1Timer">10s</div>
-            ${energyHTML(1)}
-            <div class="skills-container empty" id="p1Skills">${skillsHTML}</div>
-        `;
-        document.getElementById('p2GameArea').innerHTML = `
-            <div class="timer-display hidden" id="p2Timer">10s</div>
-            ${energyHTML(2)}
-            <div class="skills-container empty" id="p2Skills">${skillsHTML}</div>
-        `;
+        const p1Area = document.getElementById('p1GameArea');
+        const p2Area = document.getElementById('p2GameArea');
+        
+        if (p1Area) p1Area.innerHTML = `${energyHTML(1)}<div class="skills-container empty" id="p1Skills">${skillsHTML}</div>`;
+        if (p2Area) p2Area.innerHTML = `${energyHTML(2)}<div class="skills-container empty" id="p2Skills">${skillsHTML}</div>`;
         
         [1, 2].forEach(pNum => {
             const panel = document.getElementById(`p${pNum}Skills`);
             if(panel) {
                 panel.querySelectorAll('.skill-btn').forEach(btn => {
-                    btn.onclick = (e) => this.activateSkill(btn.dataset.skill);
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        this.activateSkill(btn.dataset.skill);
+                    };
                 });
             }
         });
