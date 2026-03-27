@@ -1666,7 +1666,7 @@ h1 {
 }
 
 .assist-bulb.active.locked {
-    opacity: 0.75;
+    opacity: 0.95;
 }
 
 .game-card p {
@@ -2161,6 +2161,31 @@ input:checked + .slider:before {
     width: 24px;
     height: 24px;
     font-size: 10px;
+}.assist-bulb {
+    cursor: pointer;
+    font-size: 1.2rem;
+    opacity: 0.5;
+    transition: all 0.3s ease;
+    user-select: none;
+    padding: 4px;
+    border-radius: 50%;
+}
+
+.assist-bulb.active {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px #fcd34d) brightness(1.2);
+    transform: scale(1.1);
+}
+
+.assist-bulb:hover:not(.locked) {
+    transform: scale(1.15);
+    filter: drop-shadow(0 0 10px rgba(252, 211, 77, 0.8));
+}
+
+.assist-bulb.locked {
+    cursor: not-allowed;
+    opacity: 0.2;
+    filter: grayscale(1);
 }
 
 

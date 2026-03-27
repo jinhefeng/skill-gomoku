@@ -1,7 +1,8 @@
 class GomokuEngine {
-    constructor(roomId, context) {
+    constructor(roomId, context, config = {}) {
         this.roomId = roomId;
-        this.context = context; // { broadcast(event, data), emitTo(socketId, event, data) }
+        this.context = context; 
+        this.skillEnabled = config.skillEnabled !== false; // 接收并应用技能开关
         
         this.TURN_DURATION = 30; // Seconds
         this.boardSize = 15;
@@ -48,6 +49,7 @@ class GomokuEngine {
                 player: p.player,
                 opponentNickname: opponent ? opponent.nickname : 'Opponent',
                 currentTurn: this.currentTurn,
+                skillEnabled: this.skillEnabled,
                 score: this.score
             });
         });
@@ -195,7 +197,7 @@ class GomokuEngine {
         this.clearTurnTimer();
         this.timerStart = Date.now();
 
-        if (regenEnergy) {
+        if (regenEnergy && this.skillEnabled) {
             const p = this.currentTurn;
             if (this.energy[p] < 5) this.energy[p]++;
         }
@@ -205,13 +207,19 @@ class GomokuEngine {
             this.blockedSpots = this.blockedSpots.filter(s => s.duration > 0);
         }
 
-        this.context.broadcast('timer_sync', {
+        const syncData = {
             currentTurn: this.currentTurn,
             duration: this.TURN_DURATION,
             timestamp: this.timerStart,
-            energy: this.energy,
             blockedSpots: this.blockedSpots
-        });
+        };
+        
+        // 只有开启技能模式时才发送能量数据，防止前端 UI 误报
+        if (this.skillEnabled) {
+            syncData.energy = this.energy;
+        }
+
+        this.context.broadcast('timer_sync', syncData);
 
         this.timer = setTimeout(() => {
             this.handleTurnTimeout(this.currentTurn);

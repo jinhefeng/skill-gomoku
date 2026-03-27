@@ -94,9 +94,8 @@ class RoomLifecycleManager {
             players: [],
             selections: {},
             gameConfigs: {
-                // 移除盲目重置，状态应由服务器下发的 gameConfigs 驱动
-                sudoku: { owner: null },
-                gomoku: { owner: null }
+                sudoku: { difficulty: 'medium', smartAssist: false, owner: null },
+                gomoku: { skillEnabled: true, owner: null }
             },
             engine: null,
             persistedScores: { 1: 0, 2: 0 },
@@ -256,11 +255,15 @@ class RoomLifecycleManager {
             }
 
             // 3. 应用配置修改 (仅限 Owner)
-            if (config && config.owner === p.pIdx && gameId === 'sudoku') {
-                if (data.difficulty) config.difficulty = data.difficulty;
-                if (data.smartAssist !== undefined) config.smartAssist = data.smartAssist;
+            if (config && config.owner === p.pIdx) {
+                if (gameId === 'sudoku') {
+                    if (data.difficulty) config.difficulty = data.difficulty;
+                    if (data.smartAssist !== undefined) config.smartAssist = data.smartAssist;
+                } else if (gameId === 'gomoku') {
+                    if (data.skillEnabled !== undefined) config.skillEnabled = data.skillEnabled;
+                }
                 this.broadcastLobbyState(roomId);
-            } else if (config && config.owner !== p.pIdx && (data.difficulty || data.smartAssist !== undefined)) {
+            } else if (config && config.owner !== p.pIdx && (data.difficulty || data.smartAssist !== undefined || data.skillEnabled !== undefined)) {
                 // 如果非 Owner 尝试修改，强行给该客户端补发一次正确状态同步
                 socket.emit('lobby_selections', {
                     selections: room.selections || {}, 
@@ -278,21 +281,24 @@ class RoomLifecycleManager {
                 
                 const difficulty = gameConfig.difficulty || 'medium';
                 const smartAssist = gameConfig.smartAssist || false;
+                const skillEnabled = gameConfig.skillEnabled !== undefined ? gameConfig.skillEnabled : true;
                 
-                // 重置大厅核心状态（配置保留其所有者以外的值，下次仍可用）
+                // 重置大厅核心状态 (属性保留，所有者置空)
                 room.selections = {};
                 room.gameConfigs.sudoku.owner = null;
                 room.gameConfigs.gomoku.owner = null;
                 
                 room.state = 'INGAME';
-                this.mountEngine(roomId, chosenGame, difficulty, smartAssist);
+                this.mountEngine(roomId, chosenGame, difficulty, smartAssist, skillEnabled);
             }
         } else if (event === 'request_start_game') {
             socket.to(roomId).emit('game_proposal_received', data);
         } else if (event === 'agree_start_game') {
             if (room.state !== 'INGAME') {
+                const gameId = data.gameId;
+                const config = room.gameConfigs[gameId] || {};
                 room.state = 'INGAME';
-                this.mountEngine(roomId, data.gameId);
+                this.mountEngine(roomId, gameId, config.difficulty, config.smartAssist, config.skillEnabled);
             }
         } else if (event === 'leave_game_to_lobby') {
             if (room.state === 'INGAME') {
@@ -326,14 +332,13 @@ class RoomLifecycleManager {
         }
     }
 
-    mountEngine(roomId, gameId, difficulty, smartAssist) {
+    mountEngine(roomId, gameId, difficulty, smartAssist, skillEnabled) {
         const room = this.rooms[roomId];
         if (!room) return;
-
         const context = this.createContext(roomId);
         if (gameId === 'gomoku') {
             const GomokuEngine = require('./games/gomoku/engine');
-            room.engine = new GomokuEngine(roomId, context);
+            room.engine = new GomokuEngine(roomId, context, { skillEnabled });
         } else if (gameId === 'sudoku') {
             const EngineClass = require('./games/sudoku/engine');
             room.engine = new EngineClass(roomId, context, { difficulty: difficulty || 'medium', smartAssist: smartAssist || false });

@@ -1,18 +1,6 @@
 {
-  "totalVisits": 1012,
+  "totalVisits": 1106,
   "visitHistory": [
-    {
-      "time": "22:00",
-      "count": 531
-    },
-    {
-      "time": "23:00",
-      "count": 645
-    },
-    {
-      "time": "0:00",
-      "count": 729
-    },
     {
       "time": "1:00",
       "count": 811
@@ -95,8 +83,20 @@
     },
     {
       "time": "21:00",
-      "count": 1012
+      "count": 1025
+    },
+    {
+      "time": "22:00",
+      "count": 1065
+    },
+    {
+      "time": "23:00",
+      "count": 1095
+    },
+    {
+      "time": "0:00",
+      "count": 1106
     }
   ],
-  "lastUpdate": "2026-03-27T13:45:55.562Z"
+  "lastUpdate": "2026-03-27T16:15:10.621Z"
 }

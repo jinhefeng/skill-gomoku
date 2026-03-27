@@ -373,6 +373,20 @@ class PlatformController {
         this.socket.emit('player_select_game', payload);
     }
 
+    toggleGomokuSkill(event) {
+        if (event) event.stopPropagation();
+        this._gomokuSkillEnabled = !this._gomokuSkillEnabled;
+        this.syncGomokuConfig();
+    }
+
+    syncGomokuConfig() {
+        this.socket.emit('player_select_game', {
+            roomId: this.roomId,
+            gameId: 'gomoku',
+            skillEnabled: !!this._gomokuSkillEnabled
+        });
+    }
+
     // 数独：确认选择游戏
     confirmSudoku() {
         const diff = this._selectedSudokuDifficulty || 'medium';
@@ -398,7 +412,10 @@ class PlatformController {
                 <div class="game-cards">
                     <div class="game-card" id="card_gomoku" onclick="platform.selectGame('gomoku')">
                         <div class="card-content">
-                            <h3>技能五子棋</h3>
+                            <h3 style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <span>技能五子棋</span>
+                                <span id="gomokuSkillBulb" class="assist-bulb" onclick="platform.toggleGomokuSkill(event)" title="技能开关">💡</span>
+                            </h3>
                             <p>经典的五子棋结合炫酷技能</p>
                             <div id="sel_gomoku" class="selection-badges"></div>
                         </div>
@@ -440,25 +457,43 @@ class PlatformController {
             if (selections[2] === gameId) c.classList.add('p2-selected');
         });
 
-        // 2. 更新数独配置与权限控制
-        const sudokuConfig = gameConfigs.sudoku || { difficulty: 'medium', smartAssist: false, owner: null };
-        const isOwner = sudokuConfig.owner === this.myPlayerNum;
+        // 2. [重构] 泛化配置同步：自动处理所有游戏的灯泡和难度控制轴
+        Object.keys(gameConfigs).forEach(gameId => {
+            const config = gameConfigs[gameId];
+            const isOwner = config.owner === this.myPlayerNum;
 
-        // 只有当前玩家是数独的选择者（Owner）时，才允许修改按钮
-        this._selectedSudokuDifficulty = sudokuConfig.difficulty;
-        document.querySelectorAll('.diff-btn').forEach(btn => {
-            const active = btn.dataset.diff === sudokuConfig.difficulty;
-            btn.classList.toggle('active', active);
-            btn.disabled = !isOwner;
-            btn.classList.toggle('locked', !isOwner);
+            // 同步难度轴 (如果存在)
+            if (gameId === 'sudoku') {
+                this._selectedSudokuDifficulty = config.difficulty;
+                document.querySelectorAll('.diff-btn').forEach(btn => {
+                    const active = btn.dataset.diff === config.difficulty;
+                    btn.classList.toggle('active', active);
+                    btn.disabled = !isOwner;
+                    btn.classList.toggle('locked', !isOwner);
+                });
+            }
+
+            // 同步灯泡 (💡) - 使用标准 ID 映射逻辑
+            // 数独使用 smartAssistBulb, 五子棋使用 gomokuSkillBulb
+            let bulbId = '';
+            let enabled = false;
+            
+            if (gameId === 'sudoku') {
+                bulbId = 'smartAssistBulb';
+                enabled = config.smartAssist;
+                this._smartAssistEnabled = enabled; // 更新本地变量
+            } else if (gameId === 'gomoku') {
+                bulbId = 'gomokuSkillBulb';
+                enabled = config.skillEnabled;
+                this._gomokuSkillEnabled = enabled; // 更新本地变量
+            }
+
+            const bulb = document.getElementById(bulbId);
+            if (bulb) {
+                bulb.classList.toggle('active', !!enabled);
+                bulb.classList.toggle('locked', !isOwner);
+            }
         });
-
-        this._smartAssistEnabled = sudokuConfig.smartAssist;
-        const bulb = document.getElementById('smartAssistBulb');
-        if (bulb) {
-            bulb.classList.toggle('active', sudokuConfig.smartAssist);
-            bulb.classList.toggle('locked', !isOwner);
-        }
     }
 
     // Dynamic Engine Mounting
