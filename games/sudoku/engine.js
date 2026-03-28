@@ -21,6 +21,7 @@ class SudokuEngine {
         this.difficulty = config.difficulty || 'medium';
         this.smartAssist = config.smartAssist || false;
         this.restartRequests = new Set();
+        this.gameId = 'sudoku';
     }
 
     init() {
@@ -28,6 +29,14 @@ class SudokuEngine {
     }
 
     addPlayer(socketId, nickname) {
+        // 检查是否是重连（已有相同昵称的玩家位，但 socketId 不同）
+        const rejoiningPlayer = this.players.find(p => p.nickname === nickname);
+        if (rejoiningPlayer) {
+            console.log(`SudokuEngine: Player ${nickname} rejoining with new socket ${socketId}`);
+            rejoiningPlayer.id = socketId;
+            return;
+        }
+
         const playerNum = this.players.length === 0 ? 1 : 2;
         this.players.push({ id: socketId, nickname, player: playerNum });
 
@@ -36,20 +45,20 @@ class SudokuEngine {
         }
     }
 
+    // 获取当前完整快照用于重连同步
+    getSyncState() {
+        return {
+            board: this.board.map(row => [...row]),
+            owners: this.owners.map(row => [...row]),
+            difficulty: this.difficulty,
+            smartAssist: this.smartAssist,
+            score: { ...this.score }
+        };
+    }
+
     removePlayer(socketId) {
-        this.players = this.players.filter(p => p.id !== socketId);
-        if (this.gameActive) {
-            this.gameActive = false;
-            // 对方离开直接结算
-            this.context.broadcast('game_over', {
-                winner: this.players.length > 0 ? this.players[0].player : 0,
-                score: this.score,
-                isDraw: false,
-                reason: 'opponent_left',
-                onlyReturnLobby: true
-            });
-        }
-        this.context.broadcast('opponent_left');
+        // 极简方案：断开时不从 players 列表中删除，仅在游戏真的销毁时处理
+        // 这样可以保留 pIdx 的映射关系
     }
 
     startGame() {

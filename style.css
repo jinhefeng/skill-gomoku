@@ -1851,6 +1851,33 @@ h1 {
     line-height: 1;
 }
 
+.numpad-btn {
+    border: none;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent; /* 移除 iOS 默认高亮 */
+}
+
+.numpad-btn:not(:disabled):active {
+    transform: scale(0.92);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.numpad-btn.disabled, .numpad-btn:disabled {
+    opacity: 0.25;
+    cursor: default;
+    background: rgba(255, 255, 255, 0.02);
+    transform: none !important;
+}
+
 /* 数字键盘 */
 .sudoku-controls {
     display: flex;
@@ -2322,4 +2349,53 @@ input:checked + .slider:before {
     .player-panel:not(.active) .game-specific-container {
         display: none;
     }
+}
+
+/* === Connection Loss Overlay === */
+.conn-loss-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    transition: opacity 0.3s ease;
+}
+
+.conn-loss-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+.conn-loss-content {
+    text-align: center;
+    color: #fff;
+    padding: 30px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    max-width: 80%;
+}
+
+.conn-loss-content h3 {
+    margin: 15px 0 10px;
+    color: #ffcc00;
+    font-size: 1.5rem;
+}
+
+.conn-loss-content p {
+    color: rgba(255,255,255,0.7);
+    margin: 0;
+}
+
+.conn-loss-content .loading-spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto;
 }

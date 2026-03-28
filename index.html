@@ -162,7 +162,16 @@
             </a>
         </footer>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Connection Loss Overlay (Minimal Perception) -->
+        <div id="connLossOverlay" class="conn-loss-overlay hidden">
+            <div class="conn-loss-content">
+                <div class="loading-spinner"></div>
+                <h3>网络连接已断开</h3>
+                <p>正在尝试自动恢复...</p>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="SoundManager.js"></script>
     <script src="games/gomoku/renderer.js"></script>

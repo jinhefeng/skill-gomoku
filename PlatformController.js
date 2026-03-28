@@ -3,6 +3,11 @@ class PlatformController {
         this.socket = io();
         this.roomId = null;
         this.myNickname = '';
+        
+        // 极简重连会话记录
+        this._lastRoomId = sessionStorage.getItem('last_room_id');
+        this._lastNickname = sessionStorage.getItem('last_nickname');
+
         this.opponentNickname = '';
         this.myPlayerNum = 1;
 
@@ -26,6 +31,27 @@ class PlatformController {
     }
 
     initSocketEvents() {
+        // --- 连接状态感知 ---
+        this.socket.on('connect', () => {
+            const overlay = document.getElementById('connLossOverlay');
+            if (overlay) overlay.classList.add('hidden');
+            
+            // 如果存在旧会话，尝试自动认领房间
+            if (this._lastRoomId && this._lastNickname) {
+                console.log('Detected reconnection, attempting to rejoin room:', this._lastRoomId);
+                this.socket.emit('join_private', { 
+                    roomId: this._lastRoomId, 
+                    nickname: this._lastNickname 
+                });
+            }
+        });
+
+        this.socket.on('disconnect', (reason) => {
+            console.warn('Socket disconnected:', reason);
+            const overlay = document.getElementById('connLossOverlay');
+            if (overlay) overlay.classList.remove('hidden');
+        });
+
         this.socket.on('waiting_for_match', () => {
             this.setMenuView('waiting');
             document.getElementById('waitingText').innerText = '正在寻找对手...';
@@ -38,6 +64,13 @@ class PlatformController {
             document.getElementById('waitingText').innerText = '私密房间已就绪';
             document.getElementById('roomIdDisplay').innerText = roomId;
             this.roomId = roomId;
+            
+            // 记录当前会话用于重连
+            this._lastRoomId = roomId;
+            this._lastNickname = this.myNickname;
+            sessionStorage.setItem('last_room_id', roomId);
+            sessionStorage.setItem('last_nickname', this.myNickname);
+
             this.showToast('房间创建成功！');
         });
 
@@ -49,6 +82,12 @@ class PlatformController {
         this.socket.on('room_joined_lobby', (data) => {
             this.roomId = data.roomId;
             this.myPlayerNum = data.myPlayerNum;
+            
+            // 记录当前会话用于重连
+            this._lastRoomId = data.roomId;
+            this._lastNickname = this.myNickname;
+            sessionStorage.setItem('last_room_id', data.roomId);
+            sessionStorage.setItem('last_nickname', this.myNickname);
             
             // 只有当房间已有对手时才隐藏初始菜单，否则保持在等待视图中展示房号
             if (data.players.length > 1) {

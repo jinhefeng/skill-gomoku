@@ -151,6 +151,21 @@ class RoomLifecycleManager {
                 });
             }
         }
+
+        // --- 核心重连同步逻辑 ---
+        // 如果房间已经在游戏中，立即给新连接下发开始指令和当前引擎状态
+        if (room.state === 'INGAME' && room.engine) {
+            const opponent = room.players.find(p => p.pIdx !== pIdx);
+            const startData = {
+                roomId: roomId,
+                player: pIdx,
+                opponentNickname: opponent ? opponent.nickname : '对手',
+                gameId: room.engine.gameId, // 确保引擎有 gameId 属性
+                score: room.engine.score || room.persistedScores,
+                ...room.engine.getSyncState?.() // 获取引擎当前状态（如盘面）
+            };
+            socket.emit('game_start', startData);
+        }
     }
     handleDisconnect(socketId) {
         this.leaveQueue(socketId);
@@ -164,38 +179,24 @@ class RoomLifecycleManager {
                 
                 if (room.players.length === 0) {
                     this.destroyRoom(roomId);
-                } else if (room.state === 'INGAME') {
-                    // 游戏进行中如果离开，通知对手游戏结束
-                    const opponent = room.players.find(p => p.socket.id !== socketId);
-                    if (opponent && room.engine) {
-                        this.io.to(opponent.id).emit('game_over', { 
-                            winner: opponent.pIdx, 
-                            score: room.engine.score || room.persistedScores, 
-                            onlyReturnLobby: true 
-                        });
-                        room.engine.destroy();
-                        room.engine = null;
+                } else {
+                    // 无论 LOBBY 还是 INGAME，对方离线都只发离线通知，不立即销毁房间或判定胜负
+                    // 为重连留出空间
+                    if (room.state === 'INGAME' && room.engine) {
+                        // 如果是数独，可能不需要立即停止，但此处我们可以保留引擎
+                        // 未来可以增加 30s 倒计时
                     }
-                    room.state = 'LOBBY';
-                    room.selections = {};
-                    room.sudokuDifficulty = null;
+                    
+                    this.io.to(roomId).emit('opponent_offline', { 
+                        message: `对方 (${leavingPlayer.nickname}) 已离线，等待重连...`,
+                        playerNum: leavingPlayer.pIdx,
+                        scores: room.persistedScores
+                    });
 
-                    // 剩余玩家置灰且进入匹配队列（或者等待）
-                    this.io.to(roomId).emit('opponent_offline', { 
-                        message: `对方 (${leavingPlayer.nickname}) 已退出游戏`,
-                        playerNum: leavingPlayer.pIdx,
-                        scores: room.persistedScores
-                    });
-                } else if (room.state === 'LOBBY') {
-                    // 大厅阶段如果对方离开，通知剩余玩家并重置状态
-                    room.selections = {};
-                    room.gameConfigs.sudoku.owner = null;
-                    room.gameConfigs.gomoku.owner = null;
-                    this.io.to(roomId).emit('opponent_offline', { 
-                        message: `对方 (${leavingPlayer.nickname}) 已退出大厅`,
-                        playerNum: leavingPlayer.pIdx,
-                        scores: room.persistedScores
-                    });
+                    if (room.state === 'LOBBY') {
+                        room.gameConfigs.sudoku.owner = null;
+                        room.gameConfigs.gomoku.owner = null;
+                    }
                 }
                 break;
             }

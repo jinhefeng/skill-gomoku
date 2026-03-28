@@ -118,16 +118,18 @@ class SudokuRenderer {
 
         // 初始化盘面
         this.board = data.board.map(row => [...row]);
-        this.owners = Array.from({ length: 9 }, () => Array(9).fill(0));
+        this.owners = data.owners ? data.owners.map(row => [...row]) : Array.from({ length: 9 }, () => Array(9).fill(0));
         this.drafts = Array.from({ length: 9 }, () =>
             Array.from({ length: 9 }, () => new Set())
         );
 
-        // 标记预设格
-        for (let r = 0; r < 9; r++) {
-            for (let c = 0; c < 9; c++) {
-                if (this.board[r][c] !== 0) {
-                    this.owners[r][c] = -1;
+        // 如果没有下发 owners（正常开局），根据 board 标记预设格
+        if (!data.owners) {
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (this.board[r][c] !== 0) {
+                        this.owners[r][c] = -1;
+                    }
                 }
             }
         }
@@ -446,8 +448,13 @@ class SudokuRenderer {
         }
 
         // 2. 脏检查内容：只有内容或所属关系变化时才重绘内容
+        // Safari 补强：stateKey 必须包含选中状态(selected)和高亮状态(highlighted)
+        // 否则当玩家快速切换格子时，视觉高亮可能由于脏检查返回过快而无法同步
+        const isSelected = this.selectedCell && this.selectedCell.row === row && this.selectedCell.col === col;
+        const isHighlighted = cell.classList.contains('highlighted');
         const draftStr = Array.from(draft).sort().join(',');
-        const stateKey = `v:${value}|o:${owner}|d:${draftStr}`;
+        
+        const stateKey = `v:${value}|o:${owner}|d:${draftStr}|s:${isSelected}|h:${isHighlighted}`;
         
         if (cell.dataset.lastState === stateKey) {
             return; // 状态未变，无需重建 innerHTML，避免闪烁
@@ -499,23 +506,36 @@ class SudokuRenderer {
     updateNumberPadStatus() {
         if (!this.numpadButtons || this.numpadButtons.length === 0) return;
         
-        const cell = this.selectedCell;
-        this.numpadButtons.forEach((btn, index) => {
-            const num = index + 1;
-            // 如果开启了智能辅助，才执行置灰逻辑
-            if (this.smartAssist) {
-                if (cell && this.isValidPlacement(cell.row, cell.col, num)) {
+        // 使用 requestAnimationFrame 强制 Safari 在下一帧刷新 UI 属性
+        // 解决视觉状态切换的“粘滞”或“滞后”问题
+        requestAnimationFrame(() => {
+            const cell = this.selectedCell;
+            
+            this.numpadButtons.forEach((btn, index) => {
+                const num = index + 1;
+                
+                // 逻辑增强：
+                // 1. 如果处于草稿模式 (Draft Mode)，不进行置灰阻碍，给予玩家绝对自由
+                // 2. 如果未选中任何格 (cell 为空)，允许全部点击（引导玩家点选格子）
+                // 3. 只有在普通模式 + 开启辅助 + 已选格有效时，才执行冲突检测
+                if (this.smartAssist && !this.draftMode && cell) {
+                    const isCorrectSpot = (this.owners[cell.row][cell.col] === 0);
+                    if (isCorrectSpot && this.isValidPlacement(cell.row, cell.col, num)) {
+                        btn.classList.remove('disabled');
+                        btn.disabled = false;
+                    } else {
+                        btn.classList.add('disabled');
+                        btn.disabled = true;
+                    }
+                } else {
+                    // 非辅助模式、草稿模式或未选格：全部可用
                     btn.classList.remove('disabled');
                     btn.disabled = false;
-                } else {
-                    btn.classList.add('disabled');
-                    btn.disabled = true;
                 }
-            } else {
-                // 未开启辅助，全部可用
-                btn.classList.remove('disabled');
-                btn.disabled = false;
-            }
+            });
+
+            // 强制读取一次 offsetHeight 强制重绘 (Safari Hack)
+            this.numpadButtons[0]?.parentElement?.offsetHeight;
         });
     }
 
